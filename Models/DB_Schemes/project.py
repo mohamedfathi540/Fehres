@@ -21,6 +21,7 @@ class Project (BaseModel) :
         arbitrary_types_allowed = True
 
     @classmethod
-    def get_indexes (cls , )
+    def get_indexes (cls ):
+        pass
 
 
