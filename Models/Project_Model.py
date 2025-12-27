@@ -1,5 +1,5 @@
 from .Base_DataModel import BaseDataModel
-from .DB_Schemes.project import project
+from .DB_Schemes.project import Project
 from .enums.DataBaseEnum import databaseEnum
 
 
@@ -10,27 +10,27 @@ class projectModel (BaseDataModel) :
         self.collection = self.db_client[databaseEnum.COLLECTION_PROJECT_NAME.value]
 
 
-    async def create_project (self, project:project) :
-        result = await self.collection.insert_one(project.dict(by_alias=True))
-        project.id = result.inserted_id
+    async def create_project(self, Project: Project):
 
-        return project
-    
-    async def get_project_or_create (self, project_id : str ) :
+        result = await self.collection.insert_one(Project.dict(by_alias=True, exclude_unset=True))
+        Project._id = result.inserted_id
+
+        return Project
+
+    async def get_project_or_create_one(self, project_id: str):
 
         record = await self.collection.find_one({
-            "project_id" : project_id 
+            "project_id": project_id
         })
 
-        if record is None :
+        if record is None:
+            # create new project
+            project = Project(project_id=project_id)
+            project = await self.create_project(project=project)
 
-            #crearte new project 
-               new_project = project(project_id = project_id)
-               new_project = await self.create_project(project= new_project) 
-
-               return new_project 
+            return project
         
-        return project(**record)
+        return Project(**record)
     
 
     async def get_all_projects (self , page : int = 1 ,page_size : int = 10) :
@@ -50,7 +50,7 @@ class projectModel (BaseDataModel) :
             async for document in cursur : 
                  projects.append(
                       
-                      project(**document)
+                      Project(**document)
                  )
                 
             return projects ,total_pages

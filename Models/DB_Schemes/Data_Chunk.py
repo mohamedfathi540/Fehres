@@ -2,14 +2,12 @@ from pydantic import BaseModel ,Field, validator
 from typing import Optional
 from bson.objectid import ObjectId
 
-class dataChunk():
-    _id : Optional[ObjectId]
+class dataChunk(BaseModel):
+    id : Optional[ObjectId] = Field(None, alias="_id")
     chunk_text:str = Field(..., min_length=1)
     chunk_metadata :dict
     chunk_order : int = Field(..., gt=0)
     chunk_project_id : ObjectId
 
-
-
-class config () :
-    arbitrary_types_allowd = True
+    class Config:
+        arbitrary_types_allowed = True

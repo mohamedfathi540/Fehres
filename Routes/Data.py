@@ -8,7 +8,8 @@ from Models import ResponseSignal
 import logging
 from .Schemes.Date_Schemes import ProcessRequest
 from Models.Project_Model import projectModel
-
+from Models.DB_Schemes import dataChunk
+from Models.Chunk_Model import ChunkModel
 
 logger = logging.getLogger("uvicorn error")
 
@@ -23,9 +24,13 @@ async def upload_data (request :Request,project_id : str ,file : UploadFile ,
                        app_settings : settings = Depends(get_settings))  :
 
 
-    project_model = projectModel    ( db_client=request.app.db_client )
+    project_model = projectModel(
+        db_client=request.app.db_client
+    )
 
-    project = await project_model.get_project_or_create(project_id=project_id)
+    project = await project_model.get_project_or_create_one(
+        project_id=project_id
+    )
 
     # validate the file properties
 
@@ -62,16 +67,24 @@ async def upload_data (request :Request,project_id : str ,file : UploadFile ,
     return JSONResponse(
            content={
                 "signal": ResponseSignal.FILE_UPLOADED.value,
-                "file_id" : file_id,
-                "project_id" : str (project.id )              }
+                "file_id" : file_id             }
            )
 
 @data_router.post("/process/{project_id}")
-async def process_endpoint (project_id :str ,process_request : ProcessRequest) :
+async def process_endpoint (request :Request ,project_id :str ,process_request : ProcessRequest) :
 
     file_id = process_request.file_id
     chunk_size = process_request.chunk_size
     overlap_size = process_request.overlap_size
+    do_reset = process_request.Do_reset
+
+    project_model = projectModel(
+        db_client=request.app.db_client
+    )
+
+    project = await project_model.get_project_or_create_one(
+        project_id=project_id
+    )
 
 
     Process_Controller = processcontroller(project_id=project_id)   
@@ -82,6 +95,7 @@ async def process_endpoint (project_id :str ,process_request : ProcessRequest) :
         file_id = file_id,
         chunk_size = chunk_size,
         overlap_size = overlap_size
+        
     )
 
     if file_chunks is None or len(file_chunks) == 0:
@@ -90,6 +104,31 @@ async def process_endpoint (project_id :str ,process_request : ProcessRequest) :
                 "signal": ResponseSignal.PROCESSING_FAILED.value          }
            )
 
-    return file_chunks
+    file_chunks_records = [
+        dataChunk(chunk_text = chunk.page_content ,
+                   chunk_metadata = chunk.metadata,
+                   chunk_order = i+1 ,
+                   chunk_project_id = project.id 
+                   )
+                   for i,chunk in enumerate(file_chunks)
+    ]
+
+    chunk_model = ChunkModel(db_client=request.app.db_client)
+
+    if do_reset == 1 :
+        _ = await chunk_model.delete_chunk_by_project_id(project_id = project_id)
+
+
+
+    no_records = await chunk_model.insert_many_chunks(chunks = file_chunks_records)
+
+    return JSONResponse(
+           content={
+                "signal": ResponseSignal.PROCESSING_DONE.value ,
+                "Inserted_chunks" : no_records   })
+
+
+   
+
 
   
