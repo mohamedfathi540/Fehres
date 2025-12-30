@@ -31,7 +31,7 @@ class projectModel (BaseDataModel) :
     async def create_project(self, Project: Project):
 
         result = await self.collection.insert_one(Project.dict(by_alias=True, exclude_unset=True))
-        Project._id = result.inserted_id
+        Project.id = result.inserted_id
 
         return Project
 
