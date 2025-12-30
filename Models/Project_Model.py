@@ -28,12 +28,12 @@ class projectModel (BaseDataModel) :
                 )
 
 
-    async def create_project(self, Project: Project):
+    async def create_project(self, project: Project):
 
-        result = await self.collection.insert_one(Project.dict(by_alias=True, exclude_unset=True))
-        Project.id = result.inserted_id
+        result = await self.collection.insert_one(project.dict(by_alias=True, exclude_unset=True))
+        project.id = result.inserted_id
 
-        return Project
+        return project
 
     async def get_project_or_create_one(self, project_id: str):
 

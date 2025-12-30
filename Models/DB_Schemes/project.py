@@ -21,18 +21,12 @@ class Project (BaseModel) :
         arbitrary_types_allowed = True
 
     @classmethod
-<<<<<<< HEAD
+
     def get_indexes(cls) :
         return[
             {
-                "key" : [("project_id,1")],
+                "key" : [("project_id", 1)],
                 "name" : "project_id_index_1",
-                "uniqe" : True
+                "unique" : True
             }
         ]
-=======
-    def get_indexes (cls ):
-        pass
-
-
->>>>>>> 7187f73183e524281dc5ec5a762a962a71e75747

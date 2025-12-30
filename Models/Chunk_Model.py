@@ -9,7 +9,7 @@ class ChunkModel (BaseDataModel) :
         super().__init__(db_client = db_client)
         self.collection = self.db_client[databaseEnum.COLLECTION_CHUNK_NAME.value]
 
-    classmethod
+    @classmethod
     async def create_instance(cls, db_client : object) :
          instance = cls(db_client)
          await instance.init_collection()

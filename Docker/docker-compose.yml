@@ -10,17 +10,11 @@ services:
 
     volumes :
       - mongodata:/data/db
-<<<<<<< HEAD
 
     environment:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
 
-=======
-    environment :
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
->>>>>>> 7187f73183e524281dc5ec5a762a962a71e75747
     networks :
       - backend
     
@@ -29,14 +23,9 @@ services:
 networks:
   backend: 
 
-<<<<<<< HEAD
 volumes:
   mongodata:
 
 
 
-=======
-volumes :
-  mongodata:
->>>>>>> 7187f73183e524281dc5ec5a762a962a71e75747
  
