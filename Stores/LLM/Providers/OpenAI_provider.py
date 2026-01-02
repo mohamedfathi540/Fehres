@@ -17,12 +17,11 @@ class OpenAIProvider(LLMInterface) :
 
 
         self.genration_model_id = None        
-        self.client = OpenAI(api_key=self.api_key,base_url=self.api_url)
 
         self.embedding_model_id = None
         self.embedding_size = None
 
-        self.client = OpenAI(api_key=self.api_key, api_url=self.api_url)
+        self.client = OpenAI(api_key=self.api_key, base_url = self.api_url)
 
         self.logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ class OpenAIProvider(LLMInterface) :
         return text [:self.defualt_input_max_characters].strip()
 
 
-    def genrate_text(self ,prompt : str , max_output_tokens : int =None ,temperature : float =None , chat_history : lisr =[]) :
+    def genrate_text(self ,prompt : str , max_output_tokens : int =None ,temperature : float =None , chat_history : list =[]) :
         if not self.client :
             self.logger.error("OpenAI client is not initialized")
             return None
