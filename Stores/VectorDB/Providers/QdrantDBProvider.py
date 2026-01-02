@@ -5,16 +5,17 @@ from ..VectorDBEnums import DistanceMethodEnums
 from typing import List
 
 class QdrantDBProvider(VectorDBInterface):
-    def __init__(self,db_path :str,distancemethod : str )
+    def __init__(self,db_path :str,distance_method : str ):
+
 
         self.client = None
         self.db_path = db_path
-        self.distancemethod = None
+        self.distance_method = None
 
-        if self.distance_method == DistanceMethodEnums.COSINE.value :
+        if distance_method == DistanceMethodEnums.COSINE.value :
             self.distance_method = models.Distance.COSINE
 
-        elif self.distance_method == DistanceMethodEnums.DOT.value :
+        elif distance_method == DistanceMethodEnums.DOT.value :
             self.distance_method = models.Distance.DOT
 
 
@@ -40,7 +41,7 @@ class QdrantDBProvider(VectorDBInterface):
 
 
     def delete_collection(self, collection_name: str):
-        if is_collection_exists(collection_name) :
+        if self.is_collection_exists(collection_name) :
             return self.client.delete_collection(collection_name = collection_name)
 
 
@@ -48,13 +49,13 @@ class QdrantDBProvider(VectorDBInterface):
         if do_reset :
             _ =  self.client.delete_collection(collection_name = collection_name)
 
-        if not is_collection_exists (collection_name) :
-            _ self.client.create_collection(
+        if not self.is_collection_exists (collection_name) :
+            _ = self.client.create_collection(
                 collection_name = collection_name ,
                 vectors_config = models.VectorParms(
-                                                    size = embedding_size ,
-                                                    distance = self.distance_method 
-                    )
+                size = embedding_size ,
+                distance = self.distance_method 
+                )
             )
 
             return True
@@ -66,7 +67,7 @@ class QdrantDBProvider(VectorDBInterface):
                         metadata : dict = None ,
                         record_id : str = None):
 
-        if not is_collection_exists (collection_name) :
+        if not self.is_collection_exists (collection_name) :
             self.logger.error (f"can not insert new record to non-existed collection {collection_name}")
             return False
         
@@ -74,7 +75,7 @@ class QdrantDBProvider(VectorDBInterface):
             _ =self.client.upload_record(
                 collection_name = collection_name ,
                 records = [
-                    models.record(
+                    models.Record(
                         vector = vector ,
                         payload = {
                             "text" : text ,
@@ -95,10 +96,10 @@ class QdrantDBProvider(VectorDBInterface):
                         metadata : list = None,
                         record_ids : list = None , batch_size : int = 50):
         if metadata is None :
-            metadata = [] * len(texts)
+            metadata = [None] * len(texts)
 
         if record_ids is None :
-            record_ids = [] * len(texts)
+            record_ids = [None] * len(texts)
 
         for i in range (0 , len(texts) , batch_size) :
 
@@ -110,7 +111,7 @@ class QdrantDBProvider(VectorDBInterface):
 
 
             batch_records = [
-                models.record(
+                models.Record(
                     vector = batch_vectors[x] ,
                     payload = {
                         "text" : batch_texts[x] ,

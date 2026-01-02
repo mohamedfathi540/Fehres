@@ -32,9 +32,9 @@ class settings (BaseSettings):
     GENRATION_DEFUALT_TEMPERATURE : float = None 
 
 
-    VECTOR_DB_BACKEND : str 
-    QDRANT_DB_PATH : str
-    QDRANT_DISTANCE_METHOD : str = None
+    VECTORDB_BACKEND : str 
+    VECTORDB_PATH : str
+    VECTORDB_DISTANCE_METHOD : str = None
     
 
     model_config = SettingsConfigDict(env_file=".env")

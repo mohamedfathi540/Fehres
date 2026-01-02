@@ -14,7 +14,7 @@ from Models.Asset_Model import AssetModel
 from Models.enums.AssetTypeEnum import assettypeEnum
 
 
-logger = logging.getLogger("uvicorn error")
+logger = logging.getLogger("uvicorn.error")
 
 data_router = APIRouter(
     prefix = "/api/v1/data",
