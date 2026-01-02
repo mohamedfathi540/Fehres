@@ -83,7 +83,7 @@ class CohereProvider(LLMInterface):
             response = self.client.embed(
                 texts=[self.process_text(text)],
                 model=self.embedding_model_id,
-                input_type=input_type
+                input_type=input_type ,
                 embedding_types = ['float']
                 # input_type is often required for v3 models, defaulting safe
             )
