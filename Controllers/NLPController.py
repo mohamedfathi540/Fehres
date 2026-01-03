@@ -1,12 +1,12 @@
 from .BaseController import basecontroller
 from .ProjectController import projectcontroller
-from Models.DB_Schemes import Project
+from Models.DB_Schemes import Project ,dataChunk
 from fastapi import UploadFile
 from Models import ResponseSignal
 import re
 import os
-
-
+from typing import List
+from Stores.LLM.LLMEnums import DocumentTypeEnum
 
 class NLPController (basecontroller) : 
 
@@ -30,3 +30,27 @@ class NLPController (basecontroller) :
         collection_info = self.vectordb_client.get_collection_info(collection_name = collection_name)
         return collection_info
        
+
+    def index_into_vector_db ( self, project : Project , chunks : list [dataChunk] , 
+                                do_reset : bool = False) :
+        
+        collection_name = self.create_collection_name(project_id = project.project_id)
+
+        texts = [c.chunk_text for c in chunks]
+        metadata = [c.chunk_metadata for c in chunks]
+        vectors = [
+            self.embedding_client.embed_text(text = text , document_type = DocumentTypeEnum.DOCUMENT.value)
+            for text in texts
+                  ]
+
+        _ = self.vectordb_client.create_collection(collection_name = collection_name , do_reset = do_reset ,
+                                                    embedding_size  = self.embedding_client.embedding_size)
+
+        _ = self.vectordb_client.insert_many(collection_name = collection_name , 
+                                            texts = texts , vectors = vectors , 
+                                            metadata = metadata)
+
+        return True
+
+        
+        

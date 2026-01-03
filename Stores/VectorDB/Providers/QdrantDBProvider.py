@@ -3,6 +3,7 @@ from ..VectorDBInterface import VectorDBInterface
 import logging
 from ..VectorDBEnums import DistanceMethodEnums
 from typing import List
+import uuid
 
 class QdrantDBProvider(VectorDBInterface):
     def __init__(self,db_path :str,distance_method : str ):
@@ -11,6 +12,7 @@ class QdrantDBProvider(VectorDBInterface):
         self.client = None
         self.db_path = db_path
         self.distance_method = None
+        self.logger = logging.getLogger(__name__)
 
         if distance_method == DistanceMethodEnums.COSINE.value :
             self.distance_method = models.Distance.COSINE
@@ -52,7 +54,7 @@ class QdrantDBProvider(VectorDBInterface):
         if not self.is_collection_exists (collection_name) :
             _ = self.client.create_collection(
                 collection_name = collection_name ,
-                vectors_config = models.VectorParms(
+                vectors_config = models.VectorParams(
                 size = embedding_size ,
                 distance = self.distance_method 
                 )
@@ -72,10 +74,14 @@ class QdrantDBProvider(VectorDBInterface):
             return False
         
         try :
-            _ =self.client.upload_record(
+            if record_id is None :
+                record_id = str(uuid.uuid4())
+             
+            _ =self.client.upload_records(
                 collection_name = collection_name ,
                 records = [
                     models.Record(
+                        id = record_id ,
                         vector = vector ,
                         payload = {
                             "text" : text ,
@@ -101,6 +107,7 @@ class QdrantDBProvider(VectorDBInterface):
         if record_ids is None :
             record_ids = [None] * len(texts)
 
+        all_successful = True
         for i in range (0 , len(texts) , batch_size) :
 
             batch_end = i + batch_size
@@ -108,30 +115,38 @@ class QdrantDBProvider(VectorDBInterface):
             batch_texts = texts[i : batch_end]
             batch_vectors = vectors[i : batch_end]
             batch_metadata = metadata[i : batch_end]
+            batch_record_ids = record_ids[i : batch_end]
 
 
-            batch_records = [
-                models.Record(
-                    vector = batch_vectors[x] ,
-                    payload = {
-                        "text" : batch_texts[x] ,
-                        "metadata" : batch_metadata[x]
-                    }
+            batch_records = []
+            for x in range (len(batch_texts)):
+                current_record_id = batch_record_ids[x]
+                if current_record_id is None:
+                    current_record_id = str(uuid.uuid4())
+
+                batch_records.append(
+                    models.Record(
+                        id = current_record_id,
+                        vector = batch_vectors[x] ,
+                        payload = {
+                            "text" : batch_texts[x] ,
+                            "metadata" : batch_metadata[x]
+                        }
+                    )
                 )
 
-                for x in range (len(batch_texts))
-            ]
-            
-            try : 
-                _ =self.client.upload_record(
+            try :
+                _ =self.client.upload_records(
                 collection_name = collection_name ,
                 records = batch_records )
 
-                return True
-            
-            except Exception as e : 
+            except Exception as e :
                 self.logger.error (f"Error while inserting batch : {e} ")
-                return False
+                all_successful = False # Mark as failed if any batch fails
+                # Continue to try other batches or break, depending on desired behavior.
+                # For now, we'll continue to try other batches but return False at the end.
+
+        return all_successful # Return True only if all batches were successful
 
     def search_by_vector(self , collection_name : str , vector : list , limit : int = 5 ) :
         return self.client.search(
