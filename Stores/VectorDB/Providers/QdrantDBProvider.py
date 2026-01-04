@@ -74,14 +74,11 @@ class QdrantDBProvider(VectorDBInterface):
             return False
         
         try :
-            if record_id is None :
-                record_id = str(uuid.uuid4())
-             
             _ =self.client.upload_records(
                 collection_name = collection_name ,
                 records = [
                     models.Record(
-                        id = record_id ,
+                        id = [record_id] ,
                         vector = vector ,
                         payload = {
                             "text" : text ,
@@ -107,7 +104,6 @@ class QdrantDBProvider(VectorDBInterface):
         if record_ids is None :
             record_ids = [None] * len(texts)
 
-        all_successful = True
         for i in range (0 , len(texts) , batch_size) :
 
             batch_end = i + batch_size
@@ -117,23 +113,17 @@ class QdrantDBProvider(VectorDBInterface):
             batch_metadata = metadata[i : batch_end]
             batch_record_ids = record_ids[i : batch_end]
 
-
-            batch_records = []
-            for x in range (len(batch_texts)):
-                current_record_id = batch_record_ids[x]
-                if current_record_id is None:
-                    current_record_id = str(uuid.uuid4())
-
-                batch_records.append(
-                    models.Record(
-                        id = current_record_id,
+            batch_records = [
+                models.Record(
+                        id = batch_record_ids[x],
                         vector = batch_vectors[x] ,
                         payload = {
                             "text" : batch_texts[x] ,
                             "metadata" : batch_metadata[x]
                         }
                     )
-                )
+                for x in range (len(batch_texts))
+                ]
 
             try :
                 _ =self.client.upload_records(
@@ -142,12 +132,9 @@ class QdrantDBProvider(VectorDBInterface):
 
             except Exception as e :
                 self.logger.error (f"Error while inserting batch : {e} ")
-                all_successful = False # Mark as failed if any batch fails
-                # Continue to try other batches or break, depending on desired behavior.
-                # For now, we'll continue to try other batches but return False at the end.
+                return False
 
-        return all_successful # Return True only if all batches were successful
-
+        return True
     def search_by_vector(self , collection_name : str , vector : list , limit : int = 5 ) :
         return self.client.search(
             collection_name = collection_name ,
