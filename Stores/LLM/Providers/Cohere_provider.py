@@ -1,5 +1,5 @@
 from ..LLMInterface import LLMInterface
-from ..LLMEnums import LLMEnums, CohereEnum
+from ..LLMEnums import LLMEnums, CohereEnum , DocumentTypeEnum
 import cohere
 import logging
 

@@ -32,7 +32,7 @@ class NLPController (basecontroller) :
        
 
     def index_into_vector_db ( self, project : Project , chunks : list [dataChunk] , 
-                                do_reset : bool = False) :
+                                chunks_ids: List[int],do_reset : bool = False) :
         
         collection_name = self.create_collection_name(project_id = project.project_id)
 
@@ -48,7 +48,8 @@ class NLPController (basecontroller) :
 
         _ = self.vectordb_client.insert_many(collection_name = collection_name , 
                                             texts = texts , vectors = vectors , 
-                                            metadata = metadata)
+                                            metadata = metadata,
+                                            record_ids = chunks_ids)
 
         return True
 

@@ -3,7 +3,6 @@ from ..VectorDBInterface import VectorDBInterface
 import logging
 from ..VectorDBEnums import DistanceMethodEnums
 from typing import List
-import uuid
 
 class QdrantDBProvider(VectorDBInterface):
     def __init__(self,db_path :str,distance_method : str ):
@@ -102,7 +101,7 @@ class QdrantDBProvider(VectorDBInterface):
             metadata = [None] * len(texts)
 
         if record_ids is None :
-            record_ids = [None] * len(texts)
+            record_ids = list(range(0,len(texts)))
 
         for i in range (0 , len(texts) , batch_size) :
 
