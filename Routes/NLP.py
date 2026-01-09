@@ -1,7 +1,7 @@
 from fastapi import FastAPI,APIRouter,status,Request
 from fastapi.responses import JSONResponse
 import logging
-from .Schemes.NLP_Schemes import PushRequest , SearchRequest
+from .Schemes.NLP_Schemes import PushRequest , SearchRequest 
 from Models.Project_Model import projectModel 
 from Models.Chunk_Model import ChunkModel
 from Controllers.NLPController import NLPController
@@ -95,7 +95,8 @@ async def search_index(request :Request ,project_id :str , search_request : Sear
 
     nlp_controller = NLPController(genration_client=request.app.genration_client,
                                     embedding_client=request.app.embedding_client,
-                                    vectordb_client=request.app.vectordb_client)
+                                    vectordb_client=request.app.vectordb_client,
+                                    template_parser=request.app.template_parser)
 
     results = nlp_controller.search_vector_db_collection(project=project , 
                                                          text= search_request.text ,
@@ -108,6 +109,41 @@ async def search_index(request :Request ,project_id :str , search_request : Sear
 
     return JSONResponse(
         content={"Signal" : ResponseSignal.SEARCH_INDEX_DONE.value ,
-                 "Results" : results})
+                 "Results" : [
+                    result.dict()
+                    for result in results]
+                 })
 
 
+@nlp_router.post("/index/answer/{project_id}")
+async def answer_index(request :Request ,project_id :str , search_request : SearchRequest) :
+    
+    
+    project_model = await projectModel.create_instance(db_client=request.app.db_client)
+    chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
+    project = await project_model.get_project_or_create_one(project_id=project_id)
+    
+    if not project :
+        return JSONResponse(status_code=status.HTTP_404_NOT_FOUND,
+                            content={"Signal" : ResponseSignal.PROJECT_NOT_FOUND.value})
+
+    nlp_controller = NLPController(genration_client=request.app.genration_client,
+                                    embedding_client=request.app.embedding_client,
+                                    vectordb_client=request.app.vectordb_client,
+                                    template_parser=request.app.template_parser)
+
+
+    answer, full_prompt ,chat_history = nlp_controller.answer_rag_question( project=project , 
+                                                                         query=search_request.text , 
+                                                                         limit=search_request.limit)
+
+    if not answer :
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST,
+                            )
+
+    return JSONResponse(
+        content={"Signal" : ResponseSignal.ANSWER_INDEX_DONE.value ,
+                 "Answer" : answer,
+                 "FullPrompt" : full_prompt,
+                 "ChatHistory" : chat_history}
+    )

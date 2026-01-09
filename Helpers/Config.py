@@ -37,6 +37,9 @@ class settings (BaseSettings):
     VECTORDB_DISTANCE_METHOD : str = None
     
 
+    DEFUALT_LANGUAGE : str = "en"
+    PRIMARY_LANGUAGE : str = "en"
+
     model_config = SettingsConfigDict(env_file=".env")
 
 def get_settings () :

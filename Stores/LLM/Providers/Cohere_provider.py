@@ -21,6 +21,7 @@ class CohereProvider(LLMInterface):
         self.embedding_model_id = None
         self.embedding_size = None
 
+        self.enums = CohereEnum
         self.logger = logging.getLogger(__name__)
 
     def set_genration_model(self, model_id: str):
