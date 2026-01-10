@@ -29,7 +29,8 @@ async def index_project (request :Request ,project_id :str ,push_request : PushR
 
     nlp_controller = NLPController(genration_client=request.app.genration_client,
                                     embedding_client=request.app.embedding_client,
-                                    vectordb_client=request.app.vectordb_client)
+                                    vectordb_client=request.app.vectordb_client,
+                                    template_parser=request.app.template_parser)
 
     has_records = True
     page_no = 1
@@ -71,7 +72,8 @@ async def get_project_index_info (request :Request ,project_id :str) :
 
     nlp_controller = NLPController(genration_client=request.app.genration_client,
                                     embedding_client=request.app.embedding_client,
-                                    vectordb_client=request.app.vectordb_client)
+                                    vectordb_client=request.app.vectordb_client,
+                                    template_parser=request.app.template_parser)
 
 
     collection_info = nlp_controller.get_vector_collection_info(project=project)

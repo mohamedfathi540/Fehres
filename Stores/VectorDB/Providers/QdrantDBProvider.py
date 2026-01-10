@@ -136,11 +136,18 @@ class QdrantDBProvider(VectorDBInterface):
 
         return True
     def search_by_vector(self , collection_name : str , vector : list , limit : int = 5 ) :
-        results = self.client.search(
-            collection_name = collection_name ,
-            query_vector = vector ,
-            limit = limit
-        )
+        if not self.is_collection_exists(collection_name):
+            return []
+
+        try:
+            results = self.client.search(
+                collection_name = collection_name ,
+                query_vector = vector ,
+                limit = limit
+            )
+        except Exception as e:
+            self.logger.error(f"Error while searching collection {collection_name}: {e}")
+            return []
 
         if not results or len(results) == 0 :
             return []
