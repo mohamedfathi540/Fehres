@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings ,SettingsConfigDict
+from typing import List
 
 class settings (BaseSettings):
 
@@ -25,7 +26,8 @@ class settings (BaseSettings):
     COHERE_API_KEY : str = None
     GEMINI_API_KEY : str = None
 
-
+    GENRATION_MODEL_ID_LITERAL : List[str] = None
+    EMBEDDING_MODEL_ID_LITERAL : List[str] = None
     GENRATION_MODEL_ID : str = None
     EMBEDDING_MODEL_ID : str = None
     EMBEDDING_SIZE : int = None
@@ -35,7 +37,7 @@ class settings (BaseSettings):
     GENRATED_DEFUALT_MAX_OUTPUT_TOKENS : int = None
     GENRATION_DEFUALT_TEMPERATURE : float = None 
 
-
+    VECTORDB_BACKEND_LITERAL : List[str] = None
     VECTORDB_BACKEND : str 
     VECTORDB_PATH : str
     VECTORDB_DISTANCE_METHOD : str = None
