@@ -22,8 +22,8 @@ class dataChunk(SQLAlchemyBase) :
     chunk_project_id = Column(Integer , ForeignKey("projects.project_id"), nullable = False)
     chunk_asset_id = Column(Integer , ForeignKey("assets.asset_id"), nullable = False)
 
-    project = relationship("Project" , back_populates = "data_chunks")
-    asset = relationship("Asset" , back_populates = "data_chunks")
+    project = relationship("Project" , back_populates = "chunks")
+    asset = relationship("Asset" , back_populates = "chunks")
 
 
     __table_args__ = (Index("ix_chunk_project_id" , chunk_project_id),
