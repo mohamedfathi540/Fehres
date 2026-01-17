@@ -6,7 +6,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy import Index
 from pydantic import BaseModel
 
-class Data_Chunk(SQLAlchemyBase) :
+class dataChunk(SQLAlchemyBase) :
 
     __tablename__ = "chunks"
 

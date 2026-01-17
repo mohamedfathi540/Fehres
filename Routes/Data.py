@@ -23,7 +23,7 @@ data_router = APIRouter(
 )
 
 @data_router.post("/upload/{project_id}")
-async def upload_data (request :Request,project_id : str ,file : UploadFile ,
+async def upload_data (request :Request,project_id : int ,file : UploadFile ,
                        app_settings : settings = Depends(get_settings))  :
 
 
@@ -67,7 +67,7 @@ async def upload_data (request :Request,project_id : str ,file : UploadFile ,
            )    
     
     asset_model = await AssetModel.create_instance(db_client=request.app.db_client)
-    asset_resource = Asset(asset_project_id=project.id,
+    asset_resource = Asset(asset_project_id=project.project_id,
                             asset_type=assettypeEnum.FILE.value,
                             asset_name=file_id,
                             asset_size=os.path.getsize(file_path))
@@ -76,11 +76,11 @@ async def upload_data (request :Request,project_id : str ,file : UploadFile ,
     return JSONResponse(
            content={
                 "signal": ResponseSignal.FILE_UPLOADED.value,
-                "file_id" : str(asset_record.id)             }
+                "file_id" : str(asset_record.asset_id)             }
            )
 
 @data_router.post("/process/{project_id}")
-async def process_endpoint (request :Request ,project_id :str ,process_request : ProcessRequest) :
+async def process_endpoint (request :Request ,project_id :int ,process_request : ProcessRequest) :
 
     chunk_size = process_request.chunk_size
     overlap_size = process_request.overlap_size
@@ -107,14 +107,14 @@ async def process_endpoint (request :Request ,project_id :str ,process_request :
                 "signal": ResponseSignal.FILE_ID_ERROR.value})
         
         project_files_ids = {
-            asset_record.id : asset_record.asset_name
+            asset_record.asset_id : asset_record.asset_name
         }
 
     else :
-        project_files_ids =await asset_model.get_all_project_asset(asset_project_id=project.id,
+        project_files_ids =await asset_model.get_all_project_asset(asset_project_id=project.project_id,
                                                                    asset_type=assettypeEnum.FILE.value)
         project_files_ids ={
-            record.id : record.asset_name
+            record.asset_project_id : record.asset_name
             for record in project_files_ids
         }
     
@@ -162,7 +162,7 @@ async def process_endpoint (request :Request ,project_id :str ,process_request :
             dataChunk(chunk_text = chunk.page_content ,
                     chunk_metadata = chunk.metadata,
                     chunk_order = i+1 ,
-                    chunk_project_id = project.id ,
+                    chunk_project_id = project.project_id ,
                     chunk_asset_id = asset_id
                     )
                     for i,chunk in enumerate(file_chunks)
