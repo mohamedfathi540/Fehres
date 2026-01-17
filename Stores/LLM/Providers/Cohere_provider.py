@@ -101,4 +101,4 @@ class CohereProvider(LLMInterface):
 
     def construct_prompt(self, prompt: str, role: str):
         # Cohere expects 'role' and 'message' (or 'text' in some contexts, but 'message' is standard for chat history objects)
-        return {"role": role, "text": self.process_text(prompt)}
+        return {"role": role, "text": prompt}

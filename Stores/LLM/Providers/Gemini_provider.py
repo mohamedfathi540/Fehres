@@ -159,4 +159,4 @@ class GeminiProvider(LLMInterface):
         # The controller likely uses the enum value.
         # We return the dict properly formatted for internal tracking, 
         # which genrate_text will then convert.
-        return {"role": role, "content": self.process_text(prompt)}
+        return {"role": role, "content": prompt}
