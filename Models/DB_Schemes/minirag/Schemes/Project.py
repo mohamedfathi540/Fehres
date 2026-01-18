@@ -13,8 +13,8 @@ class Project(SQLAlchemyBase) :
     project_uuid = Column(UUID(as_uuid = True) , default = uuid.uuid4 , unique = True, nullable = False)
 
     create_at  =Column(DateTime(timezone = True) , server_default = func.now(), nullable = False)
-    update_at  =Column(DateTime(timezone = True) , onupdate = func.now(), nullable = False)
+    update_at  =Column(DateTime(timezone = True) , default=func.now(), onupdate = func.now(), nullable = False)
 
-    chunks = relationship("Data_Chunk" , back_populates = "project")
+    chunks = relationship("dataChunk" , back_populates = "project")
     assets = relationship("Asset" , back_populates = "project")
     

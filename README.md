@@ -99,3 +99,8 @@ This uses Swagger UI to let you interactively test the API endpoints.
 ```bash
 source .venv/bin/activate
 ```
+
+### 4. Migrate the Database
+```bash
+uv run python -m alembic upgrade head
+```

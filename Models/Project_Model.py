@@ -1,5 +1,5 @@
 from .Base_DataModel import BaseDataModel
-from .DB_Schemes.Project import Project
+from .DB_Schemes.minirag.Schemes import Project
 from .enums.DataBaseEnum import databaseEnum
 from sqlalchemy.future import select
 from sqlalchemy import func
@@ -35,7 +35,7 @@ class projectModel (BaseDataModel) :
                 result = await session.execute(query)
                 project= result.scalar_one_or_none()
 
-               if project is None :
+                if project is None :
                     project_record = Project(
                         project_id=project_id
 

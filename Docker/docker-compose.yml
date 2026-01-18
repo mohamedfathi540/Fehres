@@ -1,50 +1,44 @@
 services:
-  mongodb :
+  mongodb:
 
-    image : mongo:8.2.3
+    image: mongo:8.2.3
 
     container_name: mongodb
 
-    ports : 
+    ports:
       - "27007:27017"
 
-    volumes :
+    volumes:
       - mongodata:/data/db
 
     environment:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
 
-    networks :
+    networks:
       - backend
-    
+
     restart: always
 
-
-
-
   pgvector:
-    image: pgvector/pgvector:0.8.0-pg17
+    image: pgvector/pgvector:0.8.1-pg18-trixie
     container_name: pgvector
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
-      - pgvector_data:/var/lib/postgresql/data
+      - pgvector_data_v2:/var/lib/postgresql
     networks:
       - backend
     restart: always
 
-
-
 networks:
-  backend: 
+  backend:
+
 
 volumes:
   mongodata:
-  pgvector_data:
+  pgvector_data_v2:
 
 
-
- 

@@ -36,7 +36,7 @@ class ChunkModel (BaseDataModel) :
        async with self.db_client() as session :
             result = await session.execute(select(dataChunk).where(dataChunk.chunk_id == chunk_id))
             chunck = result.scalar_one_or_none()
-        return chunck
+            return chunck
        
     async def insert_many_chunks (self,chunks : list ,batch_size : int = 10) :
         
@@ -62,8 +62,7 @@ class ChunkModel (BaseDataModel) :
         
         async with self.db_client() as session :
             async with session.begin() :
-                stmt = select(dataChunk).where(dataChunk.chunk_project_id == project_id).
-                offset((page_no - 1)*page_size).limit(page_size)
+                stmt = select(dataChunk).where(dataChunk.chunk_project_id == project_id).offset((page_no - 1)*page_size).limit(page_size)
                 
                 result = await session.execute(stmt)
                 records = result.scalars().all()
