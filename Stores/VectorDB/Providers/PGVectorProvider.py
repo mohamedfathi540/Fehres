@@ -1,3 +1,4 @@
+from sqlalchemy.sql._elements_constructors import false
 from ..VectorDBInterface import VectorDBInterface
 from ..VectorDBEnums import (DistanceMethodEnums, PgVectorTableSchemeEnums, 
                         PgvectorDistanceMethodEnums, PgvectorIndexTypeEnums)
@@ -97,6 +98,7 @@ class PGVectorProvider(VectorDBInterface):
         try:
             async with self.db_client() as session:
                 async with session.begin():
+                    self.logger.info(f"Deleting collection: {collection_name}")
                     delete_tbl = sql_text('DROP TABLE IF EXISTS :collection_name')
                     await session.execute(delete_tbl, {"collection_name": collection_name})
                     await session.commit()
@@ -110,120 +112,124 @@ class PGVectorProvider(VectorDBInterface):
     async def create_collection(self, collection_name: str, embedding_size: int, do_reset: bool = False):
         try:
             if do_reset:
-                await self.delete_collection(collection_name)
+                _ = await self.delete_collection(collection_name = collection_name)
             
-            if await self.is_collection_exists(collection_name):
-                return False
-
-            cols = PgVectorTableSchemeEnums
+            is_collection_exists = await self.is_collection_exists(collection_name = collection_name)
+            if not is_collection_exists:
+                self.logger.info(f"Creating collection: {collection_name}")
+                async with self.db_client() as session:
+                    async with session.begin():
+                        create_sql = sql_text(f'CREATE TABLE {collection_name} ('
+                                            f'{PgVectorTableSchemeEnums.ID.value} bigserial PRIMARY KEY, '
+                                            f'{PgVectorTableSchemeEnums.TEXT.value} text, '
+                                            f'{PgVectorTableSchemeEnums.VECTORS.value} vector({embedding_size}), '
+                                            f'{PgVectorTableSchemeEnums.METADATA.value} jsonb DEFAULT \'{{}}\', '
+                                            f'{PgVectorTableSchemeEnums.CHUNK_ID.value} integer,'
+                                            f'FOREIGN KEY ({PgVectorTableSchemeEnums.CHUNK_ID.value}) REFERENCES chunks(chunk_id) '
+                                            ')'
+                                            )
+                        await session.execute(create_sql)
+                        await session.commit()
+                return True
+            return False
         
-        create_table_sql = f"""
-        CREATE TABLE {collection_name} (
-            {cols.ID.value} TEXT PRIMARY KEY,
-            {cols.TEXT.value} TEXT,
-            {cols.VECTORS.value} vector({embedding_size}),
-            {cols.METADATA.value} JSONB,
-            {cols.CHUNCK_ID.value} TEXT
-        );
-        """
+        except Exception as e:
+            self.logger.error(f"Failed to create collection: {e}")
+            raise e
         
-        index_type = PgvectorIndexTypeEnums.HNSW.value
-        opclass = self.opclass_map.get("index", "vector_l2_ops")
-        
-        create_index_sql = f"""
-        CREATE INDEX ON {collection_name} USING {index_type} ({cols.VECTORS.value} {opclass});
-        """
-
-        with self.engine.connect() as connection:
-            with connection.begin():
-                connection.execute(text(create_table_sql))
-                connection.execute(text(create_index_sql))
-        return True
-
-    def insert_one(self, collection_name: str, 
-                   text_content: str, vector: list, 
+     
+    async def insert_one(self, collection_name: str, 
+                   text: str, vector: list, 
                    metadata: dict = None, 
                    record_id: str = None):
-        if not self.engine:
-            self.connect()
-        
-        cols = PgVectorTableSchemeEnums
-        if metadata is None:
-            metadata = {}
-        
-        if record_id is None:
-             record_id = str(uuid.uuid4())
-             
-        # Try to extract chunk_id from metadata if present
-        # Note: using 'chunk_id' key as convention, or maybe 'chunck_id' to match enum name?
-        # I'll check both.
-        chunk_id_val = metadata.get("chunk_id") or metadata.get("chunck_id")
-             
-        sql = text(f"""
-            INSERT INTO {collection_name} 
-            ({cols.ID.value}, {cols.TEXT.value}, {cols.VECTORS.value}, {cols.METADATA.value}, {cols.CHUNCK_ID.value})
-            VALUES (:id, :text, :vector, :metadata, :chunk_id)
-        """)
-        
         try:
-            with self.engine.connect() as connection:
-                connection.execute(sql, {
-                    "id": record_id,
-                    "text": text_content,
-                    "vector": str(vector),
-                    "metadata": json.dumps(metadata),
-                    "chunk_id": chunk_id_val
-                })
-                connection.commit()
+            is_collection_exists = await self.is_collection_exists(collection_name = collection_name)
+            if not is_collection_exists:
+                self.logger.info(f"Can not insert record to non existing collection: {collection_name}")
+                return False
+            
+            if not record_id:
+                self.logger.info(f"Can not insert new record without chunk_id: {collection_name}")
+                return False
+
+            async with self.db_client() as session:
+                async with session.begin():
+
+                    insert_sql = sql_text(f'INSERT INTO {collection_name} '
+                    f'({PgVectorTableSchemeEnums.TEXT.value},{PgVectorTableSchemeEnums.VECTORS.value},{PgVectorTableSchemeEnums.METADATA.value},{PgVectorTableSchemeEnums.CHUNK_ID.value}) '
+                    f'VALUES (:text, :vector, :metadata, :chunk_id)'
+                    )
+
+                    await session.execute(insert_sql, 
+                        {
+                        "text": text,
+                        "vector": "[" +",".join([str(v) for v in vector ])+ "]",
+                        "metadata": metadata,
+                        "chunk_id": record_id
+                        }
+                    )
+                    await session.commit()
+
             return True
+       
+            
         except Exception as e:
-            self.logger.error(f"Error inserting one record: {e}")
+            self.logger.error(f"Error inserting one record to collection: {collection_name}, error: {e}")
             return False
 
-    def insert_many(self, collection_name: str, 
+    async def insert_many(self, collection_name: str, 
                     texts: list, vectors: list, 
                     metadata: list = None, 
                     record_ids: list = None, batch_size: int = 50):
-        if not self.engine:
-            self.connect()
-            
-        cols = PgVectorTableSchemeEnums
-        if metadata is None:
-            metadata = [{} for _ in texts]
-        if record_ids is None:
-            record_ids = [str(uuid.uuid4()) for _ in texts]
-
-        data = []
-        for i in range(len(texts)):
-            meta = metadata[i] if i < len(metadata) else {}
-            chunk_id_val = meta.get("chunk_id") or meta.get("chunck_id")
-            
-            data.append({
-                "id": record_ids[i],
-                "text": texts[i],
-                "vector": str(vectors[i]),
-                "metadata": json.dumps(meta),
-                "chunk_id": chunk_id_val
-            })
-            
-        sql = text(f"""
-            INSERT INTO {collection_name} 
-            ({cols.ID.value}, {cols.TEXT.value}, {cols.VECTORS.value}, {cols.METADATA.value}, {cols.CHUNCK_ID.value})
-            VALUES (:id, :text, :vector, :metadata, :chunk_id)
-        """)
 
         try:
-            with self.engine.connect() as connection:
-                for i in range(0, len(data), batch_size):
-                    batch = data[i:i+batch_size]
-                    connection.execute(sql, batch)
-                connection.commit()
+            is_collection_exists = await self.is_collection_exists(collection_name = collection_name)
+            if not is_collection_exists:
+                self.logger.info(f"Can not insert records to non existing collection: {collection_name}")
+                return False
+            if len(vectors) != len(record_ids):
+                self.logger.info(f"Invalid data items for collection: {collection_name}")
+                return False
+            if not metadata or len(metadata) == 0:
+                metadata = [None] * len(texts)
+            if not record_ids or len(record_ids) == 0:
+                record_ids = None
+
+            async with self.db_client() as session:
+                async with session.begin():
+                    for i in range(0,len(texts),batch_size):
+                        batch_texts = texts[i:i+batch_size]
+                        batch_vectors = vectors[i:i+batch_size]
+                        batch_metadata = metadata[i:i+batch_size] 
+                        batch_record_ids = record_ids[i:i+batch_size]
+                        values = []
+
+                        for _text, _vector, _metadata, _record_id in zip(batch_texts, batch_vectors, batch_metadata, batch_record_ids):
+                            values.append({
+                                "text": _text,
+                                "vector": "[" +",".join([str(v) for v in _vector ])+ "]",
+                                "metadata": _metadata,
+                                "chunk_id": _record_id
+                            })
+
+                            batch_insert_sql = sql_text(f'INSERT INTO {collection_name} '
+                                                         f'{PgVectorTableSchemeEnums.TEXT.value}, '
+                                                         f'{PgVectorTableSchemeEnums.VECTORS.value}, '
+                                                         f'{PgVectorTableSchemeEnums.METADATA.value}, '
+                                                         f'{PgVectorTableSchemeEnums.CHUNK_ID.value}) '
+                                                         f'VALUES (:text, :vector, :metadata, :chunk_id)'
+                                                         )
+                            await session.execute(batch_insert_sql, values)
+                            await session.commit()
             return True
+       
+            
         except Exception as e:
             self.logger.error(f"Error inserting many records: {e}")
             return False
+        
 
-    def search_by_vector(self, collection_name: str, vector: list, limit: int = 5) -> List[RetrivedDocument]:
+    async def search_by_vector(self, collection_name: str, vector: list, limit: int = 5) -> List[RetrivedDocument]:
         if not self.engine:
             self.connect()
             
