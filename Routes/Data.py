@@ -2,7 +2,7 @@ from fastapi import FastAPI,APIRouter,Depends,UploadFile,status,Request
 from fastapi.responses import JSONResponse
 import os
 from Helpers.Config import get_settings,settings
-from Controllers import datacontroller ,projectcontroller ,processcontroller
+from Controllers import datacontroller ,projectcontroller ,processcontroller,NLPController
 import aiofiles
 from Models import ResponseSignal
 import logging
@@ -97,6 +97,13 @@ async def process_endpoint (request :Request ,project_id :int ,process_request :
     asset_model = await AssetModel.create_instance(db_client=request.app.db_client)
     project_files_ids = {}
 
+    nlp_controller = NLPController(
+        genration_client=request.app.genration_client,
+        embedding_client=request.app.embedding_client,
+        vectordb_client=request.app.vectordb_client,
+        template_parser=request.app.template_parser 
+    )
+
     if process_request.file_id:
         asset_record = await asset_model.get_asset_record(asset_project_id=project_id,
                                                           asset_name=process_request.file_id)
@@ -134,7 +141,11 @@ async def process_endpoint (request :Request ,project_id :int ,process_request :
 
 
     if do_reset == 1 :
-            _ = await chunk_model.delete_chunk_by_project_id(project_id = project_id)
+        #delete associated vectors collection
+        collection_name = nlp_controller.create_collection_name(project_id=project.project_id)
+        _ = await request.app.vectordb_client.delete_collection(collection_name=collection_name)
+        #delete associated chunks
+        _ = await chunk_model.delete_chunk_by_project_id(project_id = project.project_id)
 
     for asset_id, file_id in project_files_ids.items():
         

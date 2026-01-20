@@ -6,6 +6,8 @@ from Models.Project_Model import projectModel
 from Models.Chunk_Model import ChunkModel
 from Controllers.NLPController import NLPController
 from Models.enums.ResponsEnums import ResponseSignal
+from tqdm.auto import tqdm
+
 logger = logging.getLogger("uvicorn.error")
 
 nlp_router = APIRouter(
@@ -36,6 +38,18 @@ async def index_project (request :Request ,project_id :int ,push_request : PushR
     page_no = 1
     inserted_items_count = 0
     idx = 0
+
+
+    #create collection if not esixted
+    collection_name = nlp_controller.create_collection_name(project_id=project.project_id)
+    _ = await request.app.vectordb_client.create_collection(collection_name=collection_name
+                                                            ,do_reset=push_request.do_reset
+                                                            ,embedding_size=request.app.embedding_client.embedding_size )
+
+    #setup batches
+    total_chunks_count = await chunk_model.get_total_chunks_count(project_id=project.project_id)
+    p_bar = tqdm(total=total_chunks_count,desc="vectors Indexing",position=0)
+
     while has_records :
 
         page_chunks = await chunk_model.get_project_chunks(project_id=project.project_id, page_no=page_no)
@@ -47,14 +61,17 @@ async def index_project (request :Request ,project_id :int ,push_request : PushR
         chunks_ids = list (range(idx , idx + len(page_chunks)))
         idx += len(page_chunks)
         
-        is_inserted = nlp_controller.index_into_vector_db(project=project , chunks=page_chunks ,
+        is_inserted = await nlp_controller.index_into_vector_db(project=project , chunks=page_chunks ,
                                                             chunks_ids=chunks_ids ,do_reset=push_request.do_reset)
         if not is_inserted :
             return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 content={"Signal" : ResponseSignal.INSERT_INTO_VECTOR_DB_ERROR.value})
         
+        
+        p_bar.update(len(page_chunks))
         inserted_items_count += len(page_chunks)
 
+    p_bar.close()
     return JSONResponse(
         content={"Signal" : ResponseSignal.INSERT_INTO_VECTOR_DB_DONE.value ,
                  "InsertedItemsCount" : inserted_items_count})
@@ -76,7 +93,7 @@ async def get_project_index_info (request :Request ,project_id :int) :
                                     template_parser=request.app.template_parser)
 
 
-    collection_info = nlp_controller.get_vector_collection_info(project=project)
+    collection_info = await nlp_controller.get_vector_collection_info(project=project)
 
     return JSONResponse(
         content={"Signal" : ResponseSignal.GET_VECTOR_COLLECTION_INFO_DONE.value ,
@@ -100,7 +117,7 @@ async def search_index(request :Request ,project_id :int , search_request : Sear
                                     vectordb_client=request.app.vectordb_client,
                                     template_parser=request.app.template_parser)
 
-    results = nlp_controller.search_vector_db_collection(project=project , 
+    results = await nlp_controller.search_vector_db_collection(project=project , 
                                                          text= search_request.text ,
                                                          limit = search_request.limit)
 
@@ -135,7 +152,7 @@ async def answer_index(request :Request ,project_id :int , search_request : Sear
                                     template_parser=request.app.template_parser)
 
 
-    answer, full_prompt ,chat_history = nlp_controller.answer_rag_question( project=project , 
+    answer, full_prompt ,chat_history =await nlp_controller.answer_rag_question( project=project , 
                                                                          query=search_request.text , 
                                                                          limit=search_request.limit)
 

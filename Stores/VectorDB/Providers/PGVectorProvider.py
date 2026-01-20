@@ -12,13 +12,18 @@ import json, uuid
 
 class PGVectorProvider(VectorDBInterface):
     def __init__(self, db_client ,defualt_vector_size : int = 786
-                , distance_method: str = None):
+                , distance_method: str = None , index_threshold : int = 10000):
         self.db_client = db_client
         self.defualt_vector_size = defualt_vector_size
         self.distance_method = distance_method
+        self.index_threshold = index_threshold
+
+
         self.pgvector_table_prefix = PgVectorTableSchemeEnums._PREFIX.value
+
         self.logger = logging.getLogger("uvicorn")
 
+        self.defualt_index_name = lambda (collection_name): f"{collection_name}_vector_idx"
 
     async def connect(self):
         try:
@@ -137,7 +142,82 @@ class PGVectorProvider(VectorDBInterface):
             self.logger.error(f"Failed to create collection: {e}")
             raise e
         
-     
+
+
+    async def is_index_exsited (self,collection_name: str) -> bool:
+        try:
+            index_name = self.defualt_index_name(collection_name = collection_name)
+            async with self.db_client() as session:
+                    async with session.begin():
+                        check_sql = sql_text("""
+                            SELECT 1 FROM pg_indexes
+                            WHERE tablename = :table_name
+                            AND indexname = :index_name
+                        """)
+                        
+                        results = await session.execute(check_sql, {"table_name": collection_name,
+                                                                     "index_name": index_name})
+                        record = bool(results.scalar_one_or_none())
+                        
+                        return record
+        except Exception as e:
+            self.logger.error(f"Failed to check index: {e}")
+            raise e
+
+
+
+    async def create_index_vector (self,collection_name :str ,
+                                   index_type : str = PgvectorIndexTypeEnums.HNSW.value):
+
+        try : 
+            is_index_exsited = await self.is_index_exsited(collection_name = collection_name)
+            if is_index_exsited:
+                self.logger.info(f"Index already exists for collection: {collection_name}")
+                return True
+
+
+            async with self.db_client() as session:
+                    async with session.begin():
+                        count_sql = sql_text(f"SELECT COUNT(*) FROM {collection_name}")
+                        result = await session.execute(count_sql)
+                        records_count = result.scalar_one()
+                        
+                        if records_count < self.index_threshold :
+                            return False
+
+                        self.logger.info(f"Start:Creating index for collection: {collection_name}")
+
+                        index_name = self.defualt_index_name(collection_name)
+                        create_idx_sql = sql_text(
+                                                    f'CREATE INDEX {index_name} ON {collection_name} '
+                                                     f'USING {index_type} ({PgVectorTableSchemeEnums.VECTORS.value} {self.distance_method})'
+                                                     )
+                        await session.execute(create_idx_sql)
+
+                        self.logger.info(f"end:Creating index for collection: {collection_name}")
+
+            
+        except Exception as e:
+            self.logger.error(f"Failed to create index for collection: {collection_name}: {e}")
+            raise e
+                
+    async def reset_vector_index (self, collection_name : str, 
+                                index_type : str = PgvectorIndexTypeEnums.HNSW.value) -> bool:
+        try:
+            index_name = self.defualt_index_name(collection_name)
+            async with self.db_client() as session:
+                async with session.begin():
+                    drop_sql = sql_text(f'DROP INDEX IF EXISTS {index_name}')
+                    await session.execute(drop_sql)
+                    
+            return await self.create_index_vector(collection_name = collection_name, index_type = index_type)
+
+
+        except Exception as e:
+            self.logger.error(f"Failed to reset index for collection: {collection_name}: {e}")
+            raise e
+
+
     async def insert_one(self, collection_name: str, 
                    text: str, vector: list, 
                    metadata: dict = None, 
@@ -230,30 +310,30 @@ class PGVectorProvider(VectorDBInterface):
         
 
     async def search_by_vector(self, collection_name: str, vector: list, limit: int = 5) -> List[RetrivedDocument]:
-        if not self.engine:
-            self.connect()
-            
-        cols = PgVectorTableSchemeEnums
-        operator = self.operator_map.get("search", "<->")
-        
-        sql = text(f"""
-            SELECT {cols.TEXT.value}, {cols.VECTORS.value} {operator} :vector as score
-            FROM {collection_name}
-            ORDER BY score ASC
-            LIMIT :limit
-        """)
-        
+  
         try:
-            with self.engine.connect() as connection:
-                result = connection.execute(sql, {"vector": str(vector), "limit": limit})
-                rows = result.fetchall()
-                
-            documents = []
-            for row in rows:
-                txt = row[0]
-                score = row[1]
-                documents.append(RetrivedDocument(text=txt, score=score))
-            return documents
+            
+            is_collection_exists = await self.is_collection_exists(collection_name = collection_name)
+            if not is_collection_exists:
+                self.logger.info(f"Can not search for records in a non existing collection: {collection_name}")
+                return False
+            vector = "[" +",".join([str(v) for v in _vector ])+ "]"
+
+            async with self.db_client() as session:
+                async with session.begin():
+                    search_sql = sql_text(f'SELECT {PgVectorTableSchemeEnums.TEXT.value} as text,1 -  ({PgVectorTableSchemeEnums.VECTORS.value} <=> :vector) as score',
+                    f'FROM {collection_name}'
+                     'ORDER BY score DESC '
+                     f'LIMIT :{limit}')
+
+                    result = await session.execute(search_sql, {"vector": vector})
+                    records = result.fetchall()
+
+                    return [
+                        RetrivedDocument(text=record.text,score=record.score)
+                        for record in records:
+                            ]
+
         except Exception as e:
             self.logger.error(f"Error searching by vector: {e}")
             return []

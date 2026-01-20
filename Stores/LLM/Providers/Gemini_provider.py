@@ -5,6 +5,8 @@ from google.genai import types
 import logging
 import os
 import time
+from typing import List, Union
+
 
 class GeminiProvider(LLMInterface):
     def __init__(self, api_key: str,
@@ -27,7 +29,7 @@ class GeminiProvider(LLMInterface):
             self.client = None
             
         self.enums = GeminiEnum
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger('uvicorn')
 
     def set_genration_model(self, model_id: str):
         self.genration_model_id = model_id
@@ -109,10 +111,13 @@ class GeminiProvider(LLMInterface):
                 # If not rate limit error, or retries exhausted, return None
                 return None
 
-    def embed_text(self, text: str, document_type: str = None):
+    def embed_text(self, text: Union[str,List[str]], document_type: str = None):
         if not self.client:
             self.logger.error("Gemini client is not initialized")
             return None
+
+        if isinstance(text, str) :
+            text = [text]
 
         if not self.embedding_model_id:
             self.logger.error("Gemini embedding model is not initialized")
@@ -136,8 +141,8 @@ class GeminiProvider(LLMInterface):
                 if not result or not result.embeddings:
                     self.logger.error("Error while embedding text using Gemini")
                     return None
-
-                return result.embeddings[0].values
+                return [res.values for res in result.embeddings ]
+                
                 
             except Exception as e:
                 is_rate_limit = "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)

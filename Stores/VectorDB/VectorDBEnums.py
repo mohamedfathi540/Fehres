@@ -22,8 +22,8 @@ class PgVectorTableSchemeEnums (Enum) :
 
 
 class PgvectorDistanceMethodEnums (Enum) :
-    COSINE = "vector_cosine_eps"
-    DOT = "vector_12_eps"
+    COSINE = "vector_cosine_ops"
+    DOT = "vector_12_ops"
 
 class PgvectorIndexTypeEnums (Enum) :
     IVFFLAT = "ivfflat"
