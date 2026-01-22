@@ -1,1 +1,0 @@
-from Models.DB_Schemes.minirag.Schemes import Project , Asset , dataChunk , RetrivedDocument 

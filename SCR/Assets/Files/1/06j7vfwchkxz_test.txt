@@ -1,0 +1,12 @@
+# RAG System Testing Document
+
+This document is a sample for testing a RAG (Retrieval-Augmented Generation) data ingestion pipeline. It contains multiple sentences to demonstrate how text is parsed, chunked, embedded, and indexed.
+
+The primary goal is to ensure that the entire pipeline works end-to-end with a simple, controlled configuration.
+
+*   **RAG** combines information retrieval with text generation to provide more accurate and contextually relevant answers.
+*   **Chunking** involves breaking the document into smaller, semantically meaningful pieces with some overlap to maintain context between chunks.
+*   **Embeddings** are numerical representations (vectors) of text chunks used for semantic search in a vector store.
+
+You can test this by asking questions about the content, such as "What is chunking in RAG?" or "What are embeddings?".
+

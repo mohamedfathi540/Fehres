@@ -1,0 +1,4 @@
+DATA_SOURCE_URI=pvector:5432/postgres?sslmode=disable
+DATA_SOURCE_USER=postgres
+DATA_SOURCE_PASSWORD=postgres
+DATA_SOURCE_DB=minirag
