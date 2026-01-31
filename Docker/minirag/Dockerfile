@@ -16,11 +16,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
    
-COPY SCR/requirements.txt .
+COPY SRC/requirements.txt .
 
 RUN uv pip install -r requirements.txt --system
 
-COPY SCR/ .
+COPY SRC/ .
 
 #create directory for alembic
 RUN mkdir -p Models/DB_Schemes/minirag

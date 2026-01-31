@@ -7,7 +7,7 @@ services:
   fastapi:
     build:
       context: ..
-      dockerfile: docker/minirag/Dockerfile
+      dockerfile: Docker/minirag/Dockerfile
     container_name: fastapi
     ports:
       - "8000:8000"
