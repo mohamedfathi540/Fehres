@@ -6,6 +6,7 @@ from Models.Project_Model import projectModel
 from Models.Chunk_Model import ChunkModel
 from Controllers.NLPController import NLPController
 from Models.enums.ResponsEnums import ResponseSignal
+from Helpers.Config import get_settings
 from tqdm.auto import tqdm
 
 logger = logging.getLogger("uvicorn.error")
@@ -40,6 +41,14 @@ async def index_project (request :Request ,project_id :int ,push_request : PushR
 
 
 
+    settings = get_settings()
+    if push_request.do_reset and project_id == getattr(settings, "LEARNING_BOOKS_PROJECT_ID", None):
+        try:
+            from Stores.Sparse import BM25Index
+            BM25Index.delete_index(project.project_id)
+        except Exception:
+            pass
+
     #create collection if not esixted
     collection_name = nlp_controller.create_collection_name(project_id=project.project_id)
     _ = await request.app.vectordb_client.create_collection(collection_name=collection_name
@@ -71,6 +80,23 @@ async def index_project (request :Request ,project_id :int ,push_request : PushR
         inserted_items_count += len(page_chunks)
 
     p_bar.close()
+
+    if project_id == getattr(settings, "LEARNING_BOOKS_PROJECT_ID", None) and getattr(settings, "HYBRID_SEARCH_ENABLED", False):
+        try:
+            from Stores.Sparse import BM25Index
+            all_chunks = []
+            page_no = 1
+            while True:
+                page_chunks = await chunk_model.get_project_chunks(project_id=project.project_id, page_no=page_no, page_size=500)
+                if not page_chunks:
+                    break
+                all_chunks.extend(page_chunks)
+                page_no += 1
+            if all_chunks:
+                BM25Index.build_index(project.project_id, all_chunks)
+        except Exception as e:
+            logger.warning("BM25 index build failed: %s", e)
+
     return JSONResponse(
         content={"Signal" : ResponseSignal.INSERT_INTO_VECTOR_DB_DONE.value ,
                  "InsertedItemsCount" : inserted_items_count})
@@ -128,7 +154,7 @@ async def search_index(request :Request ,project_id :int , search_request : Sear
     return JSONResponse(
         content={"Signal" : ResponseSignal.SEARCH_INDEX_DONE.value ,
                  "Results" : [
-                    result.dict()
+                    (result.model_dump() if hasattr(result, "model_dump") else result.dict())
                     for result in results]
                  })
 

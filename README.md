@@ -106,6 +106,8 @@ See [Docker/README.md](Docker/README.md) for detailed Docker configuration.
 3. **Index** chunks to the vector database via `/api/v1/nlp/index/push/{project_id}`
 4. **Ask** questions via `/api/v1/nlp/index/answer/{project_id}`
 
+**Learning books corpus**: The project ID set by `LEARNING_BOOKS_PROJECT_ID` (default: 10) is reserved for the AI/Data Science references corpus (maths, statistics, coding, ML, DL, GenAI, system design). Use this fixed ID for upload, process, index, and search when using the learning assistant.
+
 For full API documentation, see [API.md](API.md).
 
 ## Project Structure

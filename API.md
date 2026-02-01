@@ -55,6 +55,51 @@ Upload a file for processing.
 
 ---
 
+### DELETE /data/asset/{project_id}/{file_id}
+
+Remove an asset (and its chunks and vector rows) from the project. Use this when a file was deleted from disk or you want to unregister it.
+
+**Parameters**
+| Name       | Type    | Location | Description                                                                 |
+| ---------- | ------- | -------- | --------------------------------------------------------------------------- |
+| project_id | integer | path     | Project identifier                                                          |
+| file_id    | string  | path     | Asset ID (integer as string) or asset name (e.g. `63p3infd9rrm_My_File.pdf`) |
+
+**Response**
+
+```json
+{
+  "signal": "Asset deleted",
+  "asset_id": 123
+}
+```
+
+Returns 404 with `"signal": "Asset not found"` if no asset matches.
+
+---
+
+### DELETE /data/project/{project_id}/assets
+
+Remove **all** file assets (and their chunks and vector rows) from the project.
+
+**Parameters**
+| Name       | Type    | Location | Description          |
+| ---------- | ------- | -------- | -------------------- |
+| project_id | integer | path     | Project identifier   |
+
+**Response**
+
+```json
+{
+  "signal": "Assets deleted",
+  "deleted_count": 5
+}
+```
+
+Returns 404 with `"signal": "project not found"` if the project does not exist. If the project has no file assets, returns `deleted_count: 0`.
+
+---
+
 ### POST /data/process/{project_id}
 
 Process uploaded files into text chunks.

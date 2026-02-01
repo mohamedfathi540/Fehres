@@ -19,23 +19,23 @@ export function Card({
   return (
     <div
       className={cn(
-        "bg-bg-secondary border border-border rounded-xl overflow-hidden",
+        "bg-bg-secondary border border-border rounded-xl overflow-hidden shadow-sm",
         className,
       )}
     >
       {(title || subtitle || actions) && (
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-          <div>
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between gap-4">
+          <div className="min-w-0">
             {title && (
-              <h3 className="text-lg font-semibold text-text-primary">
+              <h3 className="text-base font-semibold text-text-primary tracking-tight">
                 {title}
               </h3>
             )}
             {subtitle && (
-              <p className="text-sm text-text-secondary mt-1">{subtitle}</p>
+              <p className="text-sm text-text-secondary mt-0.5">{subtitle}</p>
             )}
           </div>
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
+          {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
         </div>
       )}
       <div className="p-6">{children}</div>

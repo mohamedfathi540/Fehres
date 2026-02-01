@@ -1,12 +1,13 @@
 from .BaseController import basecontroller
 from .ProjectController import projectcontroller
-from Models.DB_Schemes import Project ,dataChunk
+from Models.DB_Schemes import Project , dataChunk , RetrivedDocument
 from fastapi import UploadFile
 from Models import ResponseSignal
 import re
 import os
 from typing import List
 from Stores.LLM.LLMEnums import DocumentTypeEnum
+from Helpers.Config import get_settings
 import json
 
 
@@ -61,31 +62,64 @@ class NLPController (basecontroller) :
 
         return True
 
-    async def search_vector_db_collection  (self , project : Project , text : str ,limit : int = 5) :
-
-
+    async def search_vector_db_collection(self, project: Project, text: str, limit: int = 5):
         query_vector = None
-        collection_name = self.create_collection_name(project_id = project.project_id)
-        
-        vector = self.embedding_client.embed_text(text = text , document_type = DocumentTypeEnum.QUERY.value)
+        collection_name = self.create_collection_name(project_id=project.project_id)
 
-        if not vector or len(vector) == 0 :
+        vector = self.embedding_client.embed_text(text=text, document_type=DocumentTypeEnum.QUERY.value)
+
+        if not vector or len(vector) == 0:
             return False
 
-        if isinstance(vector ,list) and len(vector) > 0:
+        if isinstance(vector, list) and len(vector) > 0:
             query_vector = vector[0]
 
         if not query_vector:
             return False
-    
-   
-        results = await self.vectordb_client.search_by_vector(collection_name = collection_name , 
-                                                        vector = query_vector , limit = limit)
-        
 
-        if not results or len(results) == 0 :
+        settings = get_settings()
+        hybrid_enabled = getattr(settings, "HYBRID_SEARCH_ENABLED", False)
+        hybrid_alpha = getattr(settings, "HYBRID_SEARCH_ALPHA", 0.6)
+        learning_books_id = getattr(settings, "LEARNING_BOOKS_PROJECT_ID", None)
+
+        if hybrid_enabled and learning_books_id is not None and project.project_id == learning_books_id:
+            from Stores.Sparse import BM25Index
+            candidate_mult = 2
+            dense_limit = max(limit * candidate_mult, 10)
+            results = await self.vectordb_client.search_by_vector(
+                collection_name=collection_name,
+                vector=query_vector,
+                limit=dense_limit,
+            )
+            if not results or len(results) == 0:
+                return False
+            bm25_hits = BM25Index.search(project.project_id, text, top_k=dense_limit)
+            bm25_by_id = {cid: score for cid, score in bm25_hits}
+            bm25_max = max(bm25_by_id.values()) if bm25_by_id else 1.0
+            combined = []
+            for doc in results:
+                cid = getattr(doc, "chunk_id", None)
+                bm25_norm = (bm25_by_id.get(cid, 0) / bm25_max) if bm25_max > 0 else 0.0
+                score = hybrid_alpha * doc.score + (1.0 - hybrid_alpha) * bm25_norm
+                combined.append(
+                    RetrivedDocument(
+                        text=doc.text,
+                        score=score,
+                        metadata=getattr(doc, "metadata", None),
+                        chunk_id=cid,
+                    )
+                )
+            combined.sort(key=lambda d: d.score, reverse=True)
+            return combined[:limit]
+
+        results = await self.vectordb_client.search_by_vector(
+            collection_name=collection_name,
+            vector=query_vector,
+            limit=limit,
+        )
+
+        if not results or len(results) == 0:
             return False
- 
 
         return results
 
@@ -101,16 +135,25 @@ class NLPController (basecontroller) :
         if not retrieved_documents or len(retrieved_documents) == 0 :
             return answer, full_prompt ,chat_history
 
-        #step 2 : constract LLM prompt :
+        #step 2 : constract LLM prompt (include source metadata when available)
         system_prompt = self.template_parser.get("rag", "system_prompt")
-        document_prompt = "\n".join([
-            self.template_parser.get("rag", "document_prompt",
-            {
-                "doc_num" : idx+1 ,
-                "chunk_text" : self.genration_client.process_text(doc.text)
-            })
-            for idx,doc in enumerate(retrieved_documents)
-            ])
+        doc_lines = []
+        for idx, doc in enumerate(retrieved_documents):
+            chunk_text = self.genration_client.process_text(doc.text)
+            if getattr(doc, "metadata", None) and isinstance(doc.metadata, dict):
+                parts = []
+                if doc.metadata.get("source"):
+                    parts.append(doc.metadata["source"])
+                if doc.metadata.get("page") is not None:
+                    parts.append(f"page {doc.metadata['page']}")
+                if doc.metadata.get("domain"):
+                    parts.append(f"domain: {doc.metadata['domain']}")
+                if parts:
+                    chunk_text = "From: " + ", ".join(parts) + "\n" + chunk_text
+            doc_lines.append(
+                self.template_parser.get("rag", "document_prompt", {"doc_num": idx + 1, "chunk_text": chunk_text})
+            )
+        document_prompt = "\n".join(doc_lines)
 
         footer_prompt = self.template_parser.get("rag", "footer_prompt",{
             "query" : query

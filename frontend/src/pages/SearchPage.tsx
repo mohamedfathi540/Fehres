@@ -44,8 +44,8 @@ export function SearchPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-3xl font-bold text-text-primary">Search</h2>
-        <p className="text-text-secondary mt-1">
+        <h2 className="text-2xl font-semibold text-text-primary tracking-tight">Search</h2>
+        <p className="text-sm text-text-secondary mt-1">
           Search through your indexed documents using semantic search
         </p>
       </div>

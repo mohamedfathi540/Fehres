@@ -145,7 +145,7 @@ class PGVectorProvider(VectorDBInterface):
     async def create_index_vector(self, collection_name: str, index_type: str = PgvectorIndexTypeEnums.HNSW.value):
         is_index_exsited = await self.is_index_exsited(collection_name=collection_name)
         if is_index_exsited:
-            self.logger.info(f"Index already exists for collection: {collection_name}")
+            self.logger.debug(f"Index already exists for collection: {collection_name}")
             return True
 
         async with self.db_client() as session:
@@ -265,15 +265,40 @@ class PGVectorProvider(VectorDBInterface):
 
         async with self.db_client() as session:
             async with session.begin():
-                search_sql = sql_text(f'SELECT {PgVectorTableSchemeEnums.TEXT.value} as text, 1 - ({PgVectorTableSchemeEnums.VECTORS.value} <=> :vector) as score '
-                                      f'FROM {collection_name} '
-                                      f'ORDER BY score DESC '
-                                      f'LIMIT :limit')
+                search_sql = sql_text(
+                    f'SELECT {PgVectorTableSchemeEnums.TEXT.value} as text, '
+                    f'1 - ({PgVectorTableSchemeEnums.VECTORS.value} <=> :vector) as score, '
+                    f'{PgVectorTableSchemeEnums.METADATA.value} as metadata, '
+                    f'{PgVectorTableSchemeEnums.CHUNK_ID.value} as chunk_id '
+                    f'FROM {collection_name} '
+                    f'ORDER BY score DESC '
+                    f'LIMIT :limit'
+                )
 
                 result = await session.execute(search_sql, {"vector": vector_str, "limit": limit})
                 records = result.fetchall()
 
                 return [
-                    RetrivedDocument(text=record.text, score=record.score)
+                    RetrivedDocument(
+                        text=record.text,
+                        score=record.score,
+                        metadata=record.metadata if record.metadata is not None else {},
+                        chunk_id=record.chunk_id,
+                    )
                     for record in records
                 ]
+
+    async def delete_by_chunk_ids(self, collection_name: str, chunk_ids: List[int]):
+        if not chunk_ids:
+            return
+        is_collection_exists = await self.is_collection_exists(collection_name=collection_name)
+        if not is_collection_exists:
+            return
+        async with self.db_client() as session:
+            async with session.begin():
+                placeholders = ",".join([str(cid) for cid in chunk_ids])
+                delete_sql = sql_text(
+                    f"DELETE FROM {collection_name} WHERE {PgVectorTableSchemeEnums.CHUNK_ID.value} IN ({placeholders})"
+                )
+                await session.execute(delete_sql)
+                await session.commit()

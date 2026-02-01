@@ -79,11 +79,123 @@ async def upload_data (request :Request,project_id : int ,file : UploadFile ,
                 "file_id" : str(asset_record.asset_id)             }
            )
 
+
+@data_router.delete("/asset/{project_id}/{file_id}")
+async def delete_asset(request: Request, project_id: int, file_id: str):
+    """Remove an asset (and its chunks/vectors) from the project. file_id can be asset_id (integer) or asset_name (e.g. filename)."""
+    project_model = await projectModel.create_instance(db_client=request.app.db_client)
+    project = await project_model.get_project_or_create_one(project_id=project_id)
+    if not project:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"signal": ResponseSignal.PROJECT_NOT_FOUND.value},
+        )
+    asset_model = await AssetModel.create_instance(db_client=request.app.db_client)
+    chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
+    try:
+        asset_id_int = int(file_id)
+        asset = await asset_model.get_asset_by_id(asset_id=asset_id_int)
+    except ValueError:
+        asset = await asset_model.get_asset_record(
+            asset_project_id=project.project_id, asset_name=file_id
+        )
+    if not asset or asset.asset_project_id != project.project_id:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"signal": ResponseSignal.ASSET_NOT_FOUND.value},
+        )
+    asset_id = asset.asset_id
+    chunk_ids = await chunk_model.get_chunk_ids_by_asset_id(asset_id)
+    if chunk_ids:
+        nlp_controller = NLPController(
+            genration_client=request.app.genration_client,
+            embedding_client=request.app.embedding_client,
+            vectordb_client=request.app.vectordb_client,
+            template_parser=request.app.template_parser,
+        )
+        collection_name = nlp_controller.create_collection_name(project_id=project.project_id)
+        await request.app.vectordb_client.delete_by_chunk_ids(collection_name, chunk_ids)
+    await chunk_model.delete_chunks_by_asset_id(asset_id)
+    await asset_model.delete_asset(asset_id)
+    return JSONResponse(
+        content={"signal": ResponseSignal.ASSET_DELETED.value, "asset_id": asset_id},
+    )
+
+
+@data_router.delete("/project/{project_id}/assets")
+async def delete_all_assets(request: Request, project_id: int):
+    """Remove all file assets (and their chunks/vectors) from the project."""
+    project_model = await projectModel.create_instance(db_client=request.app.db_client)
+    project = await project_model.get_project_or_create_one(project_id=project_id)
+    if not project:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"signal": ResponseSignal.PROJECT_NOT_FOUND.value},
+        )
+    asset_model = await AssetModel.create_instance(db_client=request.app.db_client)
+    chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
+    assets = await asset_model.get_all_project_asset(
+        asset_project_id=project.project_id,
+        asset_type=assettypeEnum.FILE.value,
+    )
+    if not assets:
+        return JSONResponse(
+            content={
+                "signal": ResponseSignal.ASSETS_DELETED.value,
+                "deleted_count": 0,
+            },
+        )
+    nlp_controller = NLPController(
+        genration_client=request.app.genration_client,
+        embedding_client=request.app.embedding_client,
+        vectordb_client=request.app.vectordb_client,
+        template_parser=request.app.template_parser,
+    )
+    collection_name = nlp_controller.create_collection_name(project_id=project.project_id)
+    deleted_count = 0
+    for asset in assets:
+        asset_id = asset.asset_id
+        chunk_ids = await chunk_model.get_chunk_ids_by_asset_id(asset_id)
+        if chunk_ids:
+            await request.app.vectordb_client.delete_by_chunk_ids(
+                collection_name, chunk_ids
+            )
+        await chunk_model.delete_chunks_by_asset_id(asset_id)
+        await asset_model.delete_asset(asset_id)
+        deleted_count += 1
+    if deleted_count and project_id == getattr(settings, "LEARNING_BOOKS_PROJECT_ID", None):
+        try:
+            await request.app.vectordb_client.delete_collection(
+                collection_name=collection_name
+            )
+        except Exception:
+            pass
+        try:
+            from Stores.Sparse import BM25Index
+            BM25Index.delete_index(project.project_id)
+        except Exception:
+            pass
+    return JSONResponse(
+        content={
+            "signal": ResponseSignal.ASSETS_DELETED.value,
+            "deleted_count": deleted_count,
+        },
+    )
+
+
 @data_router.post("/process/{project_id}")
 async def process_endpoint (request :Request ,project_id :int ,process_request : ProcessRequest) :
 
+    settings = get_settings()
     chunk_size = process_request.chunk_size
     overlap_size = process_request.overlap_size
+    if project_id == getattr(settings, "LEARNING_BOOKS_PROJECT_ID", None):
+        chunk_size = getattr(settings, "LEARNING_BOOKS_CHUNK_SIZE", 2000)
+        overlap_size = getattr(settings, "LEARNING_BOOKS_OVERLAP_SIZE", 200)
+    if chunk_size is None:
+        chunk_size = 100
+    if overlap_size is None:
+        overlap_size = 20
     do_reset = process_request.Do_reset
 
     project_model =await projectModel.create_instance(
@@ -151,19 +263,36 @@ async def process_endpoint (request :Request ,project_id :int ,process_request :
         _ = await request.app.vectordb_client.delete_collection(collection_name=collection_name)
         #delete associated chunks
         _ = await chunk_model.delete_chunk_by_project_id(project_id = project.project_id)
+        if project_id == getattr(settings, "LEARNING_BOOKS_PROJECT_ID", None):
+            try:
+                from Stores.Sparse import BM25Index
+                BM25Index.delete_index(project.project_id)
+            except Exception:
+                pass
 
     for asset_id, file_id in project_files_ids.items():
-        
-        file_content = Process_Controller.get_file_content(file_id=file_id)
-
-        if file_content is None :
-            logger.error(f"Error while processing file : {file_id}")
+        try:
+            file_content = Process_Controller.get_file_content(file_id=file_id)
+        except Exception as e:
+            err_msg = str(e)
+            logger.error("Error while processing file %s: %s", file_id, err_msg)
             return JSONResponse(
-            status_code = status.HTTP_400_BAD_REQUEST,
-            content={
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
                     "signal": ResponseSignal.PROCESSING_FAILED.value,
-                    "error": f"Failed to load content for file {file_id}. It might be empty, corrupted, or have an unsupported format."
-            }
+                    "error": f"Failed to load file {file_id}. {err_msg}",
+                    "hint": "PDF may be encrypted, corrupted, or unsupported; try an unprotected or re-exported copy.",
+                },
+            )
+
+        if file_content is None:
+            logger.error("Error while processing file: %s (file not found or not readable)", file_id)
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "signal": ResponseSignal.PROCESSING_FAILED.value,
+                    "error": f"File not found or not readable: {file_id}. Check that the file exists in the project and has read permissions.",
+                },
             )
 
         file_chunks = Process_Controller.process_file_content(

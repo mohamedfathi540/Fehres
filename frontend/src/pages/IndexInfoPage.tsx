@@ -26,7 +26,7 @@ export function IndexInfoPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-text-primary">
+          <h2 className="text-2xl font-semibold text-text-primary tracking-tight">
             Index Information
           </h2>
           <p className="text-text-secondary mt-1">

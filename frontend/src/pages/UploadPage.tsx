@@ -91,12 +91,11 @@ export function UploadPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-3xl font-bold text-text-primary">
+        <h2 className="text-2xl font-semibold text-text-primary tracking-tight">
           Upload & Process
         </h2>
-        <p className="text-text-secondary mt-1">
-          Upload documents, process them into chunks, and index to vector
-          database
+        <p className="text-sm text-text-secondary mt-1">
+          Upload documents, process them into chunks, and index to vector database
         </p>
       </div>
 

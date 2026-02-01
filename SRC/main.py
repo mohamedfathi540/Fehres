@@ -12,7 +12,18 @@ from Utils.metrics import setup_metrics
 
 
 #Create FastAPI instance
+from fastapi.middleware.cors import CORSMiddleware
+
+#Create FastAPI instance
 app =FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5777", "http://localhost:3000", "http://localhost:8000", "*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 #Setup metrics
 setup_metrics(app)

@@ -3,7 +3,7 @@ from .DB_Schemes.minirag.Schemes import Asset
 from .enums.DataBaseEnum import databaseEnum
 from bson import ObjectId
 from sqlalchemy.future import select
-from sqlalchemy import func
+from sqlalchemy import func, delete
 
 
 class AssetModel (BaseDataModel) :
@@ -63,4 +63,12 @@ class AssetModel (BaseDataModel) :
                      )
                 result = await session.execute(stmt)
                 record = result.scalars().one_or_none()
-            return record 
+            return record
+
+    async def delete_asset(self, asset_id: int):
+        async with self.db_client() as session:
+            async with session.begin():
+                stmt = delete(Asset).where(Asset.asset_id == asset_id)
+                result = await session.execute(stmt)
+                await session.commit()
+        return result.rowcount

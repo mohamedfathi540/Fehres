@@ -34,10 +34,10 @@ A modern, accessible React SPA for the Fehres RAG (Retrieval-Augmented Generatio
 pnpm install
 
 # Start development server
-pnpm dev
+pnpm run dev
 ```
 
-The development server will start at `http://localhost:3000`.
+The development server will start at `http://localhost:5777`.
 
 ### Environment Variables
 

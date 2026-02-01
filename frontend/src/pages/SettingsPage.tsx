@@ -17,8 +17,8 @@ export function SettingsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-3xl font-bold text-text-primary">Settings</h2>
-        <p className="text-text-secondary mt-1">
+        <h2 className="text-2xl font-semibold text-text-primary tracking-tight">Settings</h2>
+        <p className="text-sm text-text-secondary mt-1">
           Configure your Fehres application
         </p>
       </div>
@@ -54,7 +54,7 @@ export function SettingsPage() {
               className="w-full px-4 py-2 bg-bg-primary border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary-500"
             />
             <p className="text-xs text-text-muted mt-1">
-              The project to work with
+              The project to work with. Use <strong>10</strong> for the learning books corpus (AI/Data Science references; book chunk size and hybrid search).
             </p>
           </div>
         </div>

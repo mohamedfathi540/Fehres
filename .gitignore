@@ -33,6 +33,9 @@ uv.lock
 SRC/Assets/Files/*/
 SRC/Assets/Database/
 
+# BM25 sparse index persistence (generated at runtime)
+SRC/data/
+
 # OS
 .DS_Store
 Thumbs.db

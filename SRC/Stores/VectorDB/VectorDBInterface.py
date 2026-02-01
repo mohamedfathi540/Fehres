@@ -50,3 +50,7 @@ class VectorDBInterface(ABC):
     @abstractmethod
     def search_by_vector(self , collection_name : str , vector : list , limit : int ) -> List[RetrivedDocument] :
         pass
+
+    async def delete_by_chunk_ids(self, collection_name: str, chunk_ids: List[int]):
+        """Remove vector rows for the given chunk_ids (e.g. before deleting chunks). Override in providers that support it."""
+        pass

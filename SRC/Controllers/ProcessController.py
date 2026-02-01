@@ -1,6 +1,8 @@
 from .BaseController import basecontroller
 from .ProjectController import projectcontroller
+from Helpers.Config import get_settings
 import os
+import json
 from langchain_community.document_loaders import TextLoader
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_community.document_loaders import CSVLoader
@@ -8,6 +10,9 @@ from langchain_community.document_loaders import Docx2txtLoader
 from Models import processingEnum
 from typing import List
 from dataclasses import dataclass
+
+# Domain keywords for learning books (maths, statistics, coding, ml, dl, genai, system_design)
+DOMAIN_KEYWORDS = ("maths", "statistics", "probability", "coding", "system_design", "system design", "ml", "dl", "genai", "gen ai")
 
 @dataclass
 class Document :
@@ -59,18 +64,45 @@ class processcontroller (basecontroller) :
         print(f"[ERROR] get_file_loader: Unsupported file extension {file_ext}")
         return None
     
-    def get_file_content (self, file_id :str) :
-        loader = self.get_file_loader(file_id = file_id)
+    def get_file_content (self, file_id : str) :
+        file_path = os.path.join(self.project_path, file_id)
+        if not os.path.exists(file_path):
+            print(f"[ERROR] get_file_content: File not found at {file_path}")
+            return None
+        if not os.access(file_path, os.R_OK):
+            print(f"[ERROR] get_file_content: File not readable (permissions) at {file_path}")
+            return None
 
-        if loader:
-            try:
-                return loader.load()
-            except Exception as e:
-                print(f"[ERROR] get_file_content: Failed to load content for {file_id}. Error: {str(e)}")
-                return None
-        
-        return None
-        
+        loader = self.get_file_loader(file_id=file_id)
+        if not loader:
+            return None
+        try:
+            return loader.load()
+        except Exception as e:
+            err_msg = str(e)
+            print(f"[ERROR] get_file_content: Failed to load content for {file_id}. Error: {err_msg}")
+            if "encrypted" in err_msg.lower() or "password" in err_msg.lower():
+                print("[HINT] PDF may be password-protected; try removing protection or use an unprotected copy.")
+            elif "failed to open" in err_msg.lower() or "cannot open" in err_msg.lower():
+                print("[HINT] PDF may be corrupted, encrypted, or in an unsupported format; try re-exporting or a different PDF.")
+            raise
+
+    def get_domain_for_file(self, file_id: str) -> str:
+        """Infer domain for chunk metadata from config BOOK_DOMAIN_MAPPING or filename keywords."""
+        try:
+            settings = get_settings()
+            if getattr(settings, "BOOK_DOMAIN_MAPPING", None):
+                mapping = json.loads(settings.BOOK_DOMAIN_MAPPING)
+                if isinstance(mapping, dict) and file_id in mapping:
+                    return str(mapping[file_id])
+        except (json.JSONDecodeError, TypeError):
+            pass
+        base = os.path.splitext(file_id)[0].lower()
+        for kw in DOMAIN_KEYWORDS:
+            if kw.replace(" ", "_") in base.replace("-", "_").replace(" ", "_") or kw in base:
+                return kw.replace(" ", "_")
+        return ""
+
     def process_file_content(self, file_content :list , file_id :str ,chunk_size : int = 100 , overlap_size :int = 20) :
         
 
@@ -80,45 +112,64 @@ class processcontroller (basecontroller) :
             
         ]
 
-        file_content_metadata = [
-            rec.metadata
-            for rec in file_content 
-            
+        file_content_metadata = [rec.metadata or {} for rec in file_content]
+        enriched_metadatas = [
+            {**m, "source": file_id, "file_name": file_id, "domain": self.get_domain_for_file(file_id)}
+            for m in file_content_metadata
         ]
 
-        # chunks = text_splitter.create_documents(
-        #     file_content_texts, metadatas = file_content_metadata
-        # )
         chunks = self.process_simpler_splitter(
-            texts = file_content_texts,
-            metadatas = file_content_metadata,
-            chunk_size = chunk_size,
-            splitter_tag = "\n"
+            texts=file_content_texts,
+            metadatas=enriched_metadatas,
+            chunk_size=chunk_size,
+            overlap_size=overlap_size,
+            splitter_tag="\n",
         )
 
         return chunks
 
-
-
-    def process_simpler_splitter(self, texts : List[str] ,metadatas : List[dict] , chunk_size : int,splitter_tag :str ="\n"):
-
-        full_text = "".join(texts)
-        lines = [
-          doc.strip()  for doc in full_text.split(splitter_tag) if len(doc.strip()) > 1
-        ]
-
-        chunks = [
-            
-        ]
+    def _split_segment_into_chunks(self, text: str, chunk_size: int, overlap_size: int, splitter_tag: str) -> List[str]:
+        """Split a single segment (e.g. one page) into chunk strings with overlap (sliding window)."""
+        overlap_size = max(0, min(overlap_size, chunk_size - 1))
+        lines = [doc.strip() for doc in text.split(splitter_tag) if len(doc.strip()) > 1]
+        chunk_strings = []
         current_chunk = ""
-
-        for line in lines :
+        for line in lines:
             current_chunk += line + splitter_tag
-            if len(current_chunk) >= chunk_size :
-                chunks.append(Document(page_content = current_chunk.strip(), metadata = {}))
-                current_chunk = ""
+            if len(current_chunk) >= chunk_size:
+                chunk_strings.append(current_chunk.strip())
+                if overlap_size > 0 and len(current_chunk) > overlap_size:
+                    current_chunk = current_chunk[-overlap_size:]
+                else:
+                    current_chunk = ""
+        if len(current_chunk) > 0:
+            chunk_strings.append(current_chunk.strip())
+        return chunk_strings
 
-        if len(current_chunk) > 0 :
-            chunks.append(Document(page_content = current_chunk.strip(), metadata = {}))
-
+    def process_simpler_splitter(
+        self,
+        texts: List[str],
+        metadatas: List[dict],
+        chunk_size: int,
+        overlap_size: int = 20,
+        splitter_tag: str = "\n",
+    ) -> List[Document]:
+        """Split texts per segment, assigning segment metadata and chunk_order to each chunk."""
+        if not texts or not metadatas:
+            return []
+        overlap_size = max(0, overlap_size or 0)
+        if len(metadatas) < len(texts):
+            metadatas = metadatas + [metadatas[-1] if metadatas else {}] * (len(texts) - len(metadatas))
+        elif len(metadatas) > len(texts):
+            metadatas = metadatas[: len(texts)]
+        chunks = []
+        for text, meta in zip(texts, metadatas):
+            segment_chunks = self._split_segment_into_chunks(text, chunk_size, overlap_size, splitter_tag)
+            for i, chunk_text in enumerate(segment_chunks):
+                chunks.append(
+                    Document(
+                        page_content=chunk_text,
+                        metadata={**meta, "chunk_order": i + 1},
+                    )
+                )
         return chunks

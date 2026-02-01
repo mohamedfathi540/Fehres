@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy.orm import relationship
 from sqlalchemy import Index
 from pydantic import BaseModel
+from typing import Optional
 
 class dataChunk(SQLAlchemyBase) :
 
@@ -38,3 +39,5 @@ class RetrivedDocument(BaseModel) :
 
     text : str
     score : float
+    metadata : Optional[dict] = None
+    chunk_id : Optional[int] = None

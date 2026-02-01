@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings ,SettingsConfigDict
-from typing import List
+from typing import List, Optional
 
 class settings (BaseSettings):
 
@@ -46,6 +46,23 @@ class settings (BaseSettings):
 
     DEFUALT_LANGUAGE : str = "en"
     PRIMARY_LANGUAGE : str = "en"
+
+    # Learning books corpus: fixed project ID reserved for AI/Data Science references (maths, statistics, coding, ml, dl, genai, system_design)
+    LEARNING_BOOKS_PROJECT_ID : int = 10
+
+    # Chunking defaults for learning books (large references)
+    LEARNING_BOOKS_CHUNK_SIZE : int = 2000
+    LEARNING_BOOKS_OVERLAP_SIZE : int = 200
+
+    # Optional JSON mapping of filename (or pattern) to domain for chunk metadata e.g. {"statistics.pdf": "statistics", "ml-intro.pdf": "ml"}
+    BOOK_DOMAIN_MAPPING : Optional[str] = None
+
+    # Hybrid search (dense + BM25): 0 = only BM25, 1 = only dense
+    HYBRID_SEARCH_ENABLED : bool = True
+    HYBRID_SEARCH_ALPHA : float = 0.6
+
+    # BM25 index persistence directory (default: under SRC/data/bm25)
+    BM25_INDEX_DIR : Optional[str] = None
 
     model_config = SettingsConfigDict(env_file=".env")
 
