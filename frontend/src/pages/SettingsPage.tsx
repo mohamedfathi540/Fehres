@@ -17,7 +17,9 @@ export function SettingsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-semibold text-text-primary tracking-tight">Settings</h2>
+        <h2 className="text-2xl font-semibold text-text-primary tracking-tight">
+          Settings
+        </h2>
         <p className="text-sm text-text-secondary mt-1">
           Configure your Fehres application
         </p>
@@ -35,7 +37,7 @@ export function SettingsPage() {
               value={apiUrl}
               onChange={(e) => setApiUrl(e.target.value)}
               placeholder="http://localhost:8000/api/v1"
-              className="w-full px-4 py-2 bg-bg-primary border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary-500"
+              className="w-full px-4 py-2 bg-bg-tertiary border border-border rounded-md text-text-primary focus:outline-none focus:border-primary-600 transition-all"
             />
             <p className="text-xs text-text-muted mt-1">
               The base URL for the Fehres API
@@ -51,10 +53,12 @@ export function SettingsPage() {
               min={1}
               value={projectId}
               onChange={(e) => setProjectId(parseInt(e.target.value) || 1)}
-              className="w-full px-4 py-2 bg-bg-primary border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary-500"
+              className="w-full px-4 py-2 bg-bg-tertiary border border-border rounded-md text-text-primary focus:outline-none focus:border-primary-600 transition-all"
             />
             <p className="text-xs text-text-muted mt-1">
-              The project to work with. Use <strong>10</strong> for the learning books corpus (AI/Data Science references; book chunk size and hybrid search).
+              The project to work with. Use <strong>10</strong> for the learning
+              books corpus (AI/Data Science references; book chunk size and
+              hybrid search).
             </p>
           </div>
         </div>
@@ -70,7 +74,7 @@ export function SettingsPage() {
           <button
             onClick={toggleTheme}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              theme === "dark" ? "bg-primary-500" : "bg-bg-hover"
+              theme === "dark" ? "bg-primary-600" : "bg-bg-hover"
             }`}
           >
             <span
@@ -106,36 +110,36 @@ export function SettingsPage() {
             href="http://localhost:3000"
             target="_blank"
             rel="noopener noreferrer"
-            className="p-4 bg-bg-primary rounded-lg border border-border hover:border-primary-500 transition-colors text-center"
+            className="p-4 bg-bg-tertiary rounded-md border border-border hover:border-primary-600 transition-colors text-center"
           >
-            <div className="text-primary-400 font-medium">Grafana</div>
+            <div className="text-text-primary font-medium">Grafana</div>
             <div className="text-xs text-text-muted mt-1">Metrics</div>
           </a>
           <a
             href="http://localhost:9090"
             target="_blank"
             rel="noopener noreferrer"
-            className="p-4 bg-bg-primary rounded-lg border border-border hover:border-primary-500 transition-colors text-center"
+            className="p-4 bg-bg-tertiary rounded-md border border-border hover:border-primary-600 transition-colors text-center"
           >
-            <div className="text-primary-400 font-medium">Prometheus</div>
+            <div className="text-text-primary font-medium">Prometheus</div>
             <div className="text-xs text-text-muted mt-1">Monitoring</div>
           </a>
           <a
             href="http://localhost:6333/dashboard"
             target="_blank"
             rel="noopener noreferrer"
-            className="p-4 bg-bg-primary rounded-lg border border-border hover:border-primary-500 transition-colors text-center"
+            className="p-4 bg-bg-tertiary rounded-md border border-border hover:border-primary-600 transition-colors text-center"
           >
-            <div className="text-primary-400 font-medium">Qdrant</div>
+            <div className="text-text-primary font-medium">Qdrant</div>
             <div className="text-xs text-text-muted mt-1">Vector DB</div>
           </a>
           <a
             href="http://localhost:8000/docs"
             target="_blank"
             rel="noopener noreferrer"
-            className="p-4 bg-bg-primary rounded-lg border border-border hover:border-primary-500 transition-colors text-center"
+            className="p-4 bg-bg-tertiary rounded-md border border-border hover:border-primary-600 transition-colors text-center"
           >
-            <div className="text-primary-400 font-medium">API Docs</div>
+            <div className="text-text-primary font-medium">API Docs</div>
             <div className="text-xs text-text-muted mt-1">Swagger</div>
           </a>
         </div>
@@ -144,9 +148,7 @@ export function SettingsPage() {
       {/* About */}
       <Card title="About">
         <div className="text-center py-4">
-          <h1 className="text-2xl font-bold gradient-primary bg-clip-text text-transparent mb-2">
-            Fehres
-          </h1>
+          <h1 className="text-2xl font-bold text-text-primary mb-2">Fehres</h1>
           <p className="text-text-secondary">RAG System</p>
           <p className="text-sm text-text-muted mt-4">
             A modern frontend for the Fehres RAG API built with React and React

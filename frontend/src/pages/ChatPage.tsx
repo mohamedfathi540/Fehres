@@ -60,7 +60,9 @@ export function ChatPage() {
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
       <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-text-primary tracking-tight">Chat</h2>
+        <h2 className="text-2xl font-semibold text-text-primary tracking-tight">
+          Chat
+        </h2>
         <p className="text-sm text-text-secondary mt-1">
           Ask questions about your indexed documents
         </p>
@@ -71,10 +73,12 @@ export function ChatPage() {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {chatHistory.length === 0 ?
-            <div className="flex items-center justify-center h-full text-text-muted">
+            <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <p className="text-lg mb-2">Welcome to Fehres Chat</p>
-                <p className="text-sm">
+                <p className="text-lg mb-2 text-text-primary">
+                  Welcome to Fehres Chat
+                </p>
+                <p className="text-sm text-text-secondary">
                   Ask questions about your documents to get AI-generated answers
                 </p>
               </div>
@@ -89,7 +93,7 @@ export function ChatPage() {
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                     message.role === "user" ?
-                      "bg-primary-500 text-white rounded-br-none"
+                      "bg-primary-600 text-white rounded-br-none"
                     : "bg-bg-tertiary text-text-primary border border-border rounded-bl-none"
                   }`}
                 >
@@ -105,9 +109,9 @@ export function ChatPage() {
             <div className="flex justify-start">
               <div className="bg-bg-tertiary border border-border rounded-2xl rounded-bl-none px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-primary-500 rounded-full animate-bounce" />
-                  <div className="w-2 h-2 bg-primary-500 rounded-full animate-bounce delay-100" />
-                  <div className="w-2 h-2 bg-primary-500 rounded-full animate-bounce delay-200" />
+                  <div className="w-2 h-2 bg-primary-600 rounded-full animate-bounce" />
+                  <div className="w-2 h-2 bg-primary-600 rounded-full animate-bounce delay-100" />
+                  <div className="w-2 h-2 bg-primary-600 rounded-full animate-bounce delay-200" />
                 </div>
               </div>
             </div>
@@ -134,7 +138,7 @@ export function ChatPage() {
               max={10}
               value={contextLimit}
               onChange={(e) => setContextLimit(parseInt(e.target.value))}
-              className="w-full h-2 bg-bg-primary rounded-lg appearance-none cursor-pointer accent-primary-500"
+              className="w-full"
             />
           </div>
 
@@ -146,7 +150,7 @@ export function ChatPage() {
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="Ask a question..."
               disabled={answerMutation.isPending}
-              className="flex-1 px-4 py-3 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-primary-500 disabled:opacity-50"
+              className="flex-1 px-4 py-3 bg-bg-tertiary border border-border rounded-md text-text-primary placeholder-text-muted focus:outline-none focus:border-primary-600 disabled:opacity-50 transition-all"
             />
             <Button
               type="submit"

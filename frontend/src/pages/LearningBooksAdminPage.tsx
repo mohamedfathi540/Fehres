@@ -49,8 +49,9 @@ export function LearningBooksAdminPage() {
     onSuccess: (data) => {
       setIndexMessage({
         type: "success",
-        text: data.InsertedItemsCount != null
-          ? `Indexing complete. ${data.InsertedItemsCount} items indexed.`
+        text:
+          data.InsertedItemsCount != null ?
+            `Indexing complete. ${data.InsertedItemsCount} items indexed.`
           : "Indexing complete.",
       });
       setProcessMessage(null);
@@ -119,7 +120,6 @@ export function LearningBooksAdminPage() {
                 id="resetChunks"
                 checked={resetChunks}
                 onChange={(e) => setResetChunks(e.target.checked)}
-                className="rounded border-border bg-bg-primary text-primary-500 focus:ring-primary-500"
               />
               <label
                 htmlFor="resetChunks"
@@ -139,16 +139,14 @@ export function LearningBooksAdminPage() {
             {processMessage && (
               <span
                 className={`inline-flex items-center gap-1.5 text-sm ${
-                  processMessage.type === "success"
-                    ? "text-success"
-                    : "text-error"
+                  processMessage.type === "success" ?
+                    "text-success"
+                  : "text-error"
                 }`}
               >
-                {processMessage.type === "success" ? (
+                {processMessage.type === "success" ?
                   <CheckCircleIcon className="w-4 h-4" />
-                ) : (
-                  <XCircleIcon className="w-4 h-4" />
-                )}
+                : <XCircleIcon className="w-4 h-4" />}
                 {processMessage.text}
               </span>
             )}
@@ -162,7 +160,6 @@ export function LearningBooksAdminPage() {
                 id="resetIndex"
                 checked={resetIndex}
                 onChange={(e) => setResetIndex(e.target.checked)}
-                className="rounded border-border bg-bg-primary text-primary-500 focus:ring-primary-500"
               />
               <label
                 htmlFor="resetIndex"
@@ -182,16 +179,14 @@ export function LearningBooksAdminPage() {
             {indexMessage && (
               <span
                 className={`inline-flex items-center gap-1.5 text-sm ${
-                  indexMessage.type === "success"
-                    ? "text-success"
-                    : "text-error"
+                  indexMessage.type === "success" ?
+                    "text-success"
+                  : "text-error"
                 }`}
               >
-                {indexMessage.type === "success" ? (
+                {indexMessage.type === "success" ?
                   <CheckCircleIcon className="w-4 h-4" />
-                ) : (
-                  <XCircleIcon className="w-4 h-4" />
-                )}
+                : <XCircleIcon className="w-4 h-4" />}
                 {indexMessage.text}
               </span>
             )}
@@ -213,16 +208,14 @@ export function LearningBooksAdminPage() {
             {resetMessage && (
               <span
                 className={`inline-flex items-center gap-1.5 text-sm ${
-                  resetMessage.type === "success"
-                    ? "text-success"
-                    : "text-error"
+                  resetMessage.type === "success" ?
+                    "text-success"
+                  : "text-error"
                 }`}
               >
-                {resetMessage.type === "success" ? (
+                {resetMessage.type === "success" ?
                   <CheckCircleIcon className="w-4 h-4" />
-                ) : (
-                  <XCircleIcon className="w-4 h-4" />
-                )}
+                : <XCircleIcon className="w-4 h-4" />}
                 {resetMessage.text}
               </span>
             )}

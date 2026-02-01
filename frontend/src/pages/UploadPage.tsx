@@ -95,7 +95,8 @@ export function UploadPage() {
           Upload & Process
         </h2>
         <p className="text-sm text-text-secondary mt-1">
-          Upload documents, process them into chunks, and index to vector database
+          Upload documents, process them into chunks, and index to vector
+          database
         </p>
       </div>
 
@@ -190,7 +191,7 @@ export function UploadPage() {
               step={50}
               value={chunkSize}
               onChange={(e) => setChunkSize(parseInt(e.target.value))}
-              className="w-full h-2 bg-bg-primary rounded-lg appearance-none cursor-pointer accent-primary-500"
+              className="w-full"
             />
             <p className="text-xs text-text-muted mt-1">
               Number of characters per chunk
@@ -208,7 +209,7 @@ export function UploadPage() {
               step={10}
               value={overlapSize}
               onChange={(e) => setOverlapSize(parseInt(e.target.value))}
-              className="w-full h-2 bg-bg-primary rounded-lg appearance-none cursor-pointer accent-primary-500"
+              className="w-full"
             />
             <p className="text-xs text-text-muted mt-1">
               Overlap between consecutive chunks
@@ -222,7 +223,6 @@ export function UploadPage() {
             id="doReset"
             checked={doReset}
             onChange={(e) => setDoReset(e.target.checked)}
-            className="w-4 h-4 rounded border-border bg-bg-primary text-primary-500 focus:ring-primary-500"
           />
           <label htmlFor="doReset" className="text-sm text-text-secondary">
             Reset existing chunks before processing
@@ -258,7 +258,6 @@ export function UploadPage() {
             id="resetIndex"
             checked={resetIndex}
             onChange={(e) => setResetIndex(e.target.checked)}
-            className="w-4 h-4 rounded border-border bg-bg-primary text-primary-500 focus:ring-primary-500"
           />
           <label htmlFor="resetIndex" className="text-sm text-text-secondary">
             Reset existing index before pushing

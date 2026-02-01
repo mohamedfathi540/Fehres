@@ -14,19 +14,19 @@ interface ButtonProps extends Omit<AriaButtonProps, "children"> {
 
 const variantStyles = {
   primary:
-    "gradient-primary text-white hover:opacity-92 active:opacity-95 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:ring-offset-2 focus:ring-offset-bg-primary",
+    "bg-primary-600 text-white hover:bg-primary-500 active:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-600/40 focus:ring-offset-2 focus:ring-offset-bg-primary",
   secondary:
-    "bg-bg-secondary border border-border text-text-primary hover:bg-bg-hover hover:border-border-hover focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:ring-offset-2 focus:ring-offset-bg-primary",
+    "bg-bg-tertiary border border-border text-text-primary hover:bg-bg-hover hover:border-border-hover focus:outline-none focus:ring-2 focus:ring-primary-600/30 focus:ring-offset-2 focus:ring-offset-bg-primary",
   danger:
     "bg-error text-white hover:opacity-92 active:opacity-95 focus:outline-none focus:ring-2 focus:ring-error/40 focus:ring-offset-2 focus:ring-offset-bg-primary",
   ghost:
-    "text-text-secondary hover:text-text-primary hover:bg-bg-hover focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:ring-offset-2 focus:ring-offset-bg-primary",
+    "text-text-secondary hover:text-text-primary hover:bg-bg-hover focus:outline-none focus:ring-2 focus:ring-primary-600/20 focus:ring-offset-2 focus:ring-offset-bg-primary",
 };
 
 const sizeStyles = {
-  sm: "px-3 py-1.5 text-sm rounded-lg",
-  md: "px-4 py-2 text-sm rounded-lg",
-  lg: "px-5 py-2.5 text-base rounded-lg",
+  sm: "px-3 py-1.5 text-sm rounded-md",
+  md: "px-4 py-2 text-sm rounded-md",
+  lg: "px-5 py-2.5 text-base rounded-md",
 };
 
 export function Button({

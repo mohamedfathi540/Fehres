@@ -69,23 +69,24 @@ export function LearningAssistantChatPage() {
           Learning Assistant
         </h2>
         <p className="text-sm text-text-secondary mt-1">
-          Ask questions about AI, Data Science, Maths, Statistics, ML, DL, GenAI, and System Design from the reference corpus.
+          Ask questions about AI, Data Science, Maths, Statistics, ML, DL,
+          GenAI, and System Design from the reference corpus.
         </p>
       </div>
 
       <Card className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {chatHistory.length === 0 ? (
+          {chatHistory.length === 0 ?
             <div className="flex items-center justify-center h-full text-text-muted">
               <div className="text-center">
                 <p className="text-lg mb-2">Learning Assistant</p>
                 <p className="text-sm">
-                  Ask anything about the learning books and references. Answers are grounded in the indexed corpus.
+                  Ask anything about the learning books and references. Answers
+                  are grounded in the indexed corpus.
                 </p>
               </div>
             </div>
-          ) : (
-            chatHistory.map((message) => (
+          : chatHistory.map((message) => (
               <div
                 key={message.id}
                 className={`flex ${
@@ -94,9 +95,9 @@ export function LearningAssistantChatPage() {
               >
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                    message.role === "user"
-                      ? "bg-primary-500 text-white rounded-br-none"
-                      : "bg-bg-tertiary text-text-primary border border-border rounded-bl-none"
+                    message.role === "user" ?
+                      "bg-primary-500 text-white rounded-br-none"
+                    : "bg-bg-tertiary text-text-primary border border-border rounded-bl-none"
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{message.content}</p>
@@ -106,7 +107,7 @@ export function LearningAssistantChatPage() {
                 </div>
               </div>
             ))
-          )}
+          }
           {answerMutation.isPending && (
             <div className="flex justify-start">
               <div className="bg-bg-tertiary border border-border rounded-2xl rounded-bl-none px-4 py-3">
@@ -138,7 +139,7 @@ export function LearningAssistantChatPage() {
               max={10}
               value={contextLimit}
               onChange={(e) => setContextLimit(parseInt(e.target.value))}
-              className="w-full h-2 bg-bg-primary rounded-lg appearance-none cursor-pointer accent-primary-500"
+              className="w-full"
             />
           </div>
 

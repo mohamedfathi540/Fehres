@@ -44,22 +44,22 @@ export function Sidebar() {
   return (
     <aside className="w-60 shrink-0 bg-bg-secondary border-r border-border flex flex-col h-full">
       <div className="p-5 border-b border-border">
-        <h1 className="text-xl font-semibold tracking-tight gradient-primary bg-clip-text text-transparent">
+        <h1 className="text-xl font-semibold tracking-tight text-white">
           Fehres
         </h1>
         <p className="text-xs text-text-muted mt-0.5">RAG System</p>
       </div>
 
-      <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
         {navigation.map((item) => (
           <NavLink
             key={item.name}
             to={item.href}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-primary-500/12 text-primary-400 border border-primary-500/25"
-                  : "text-text-secondary hover:bg-bg-hover hover:text-text-primary border border-transparent"
+              `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
+                isActive ?
+                  "bg-primary-600 text-white"
+                : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
               }`
             }
           >
@@ -79,7 +79,7 @@ export function Sidebar() {
             min={1}
             value={projectId}
             onChange={(e) => setProjectId(parseInt(e.target.value) || 1)}
-            className="w-full px-3 py-2 bg-bg-primary border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/30"
+            className="w-full px-3 py-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-primary focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600/30 transition-all"
           />
         </div>
         <div className="flex items-center justify-between gap-2">

@@ -44,7 +44,9 @@ export function SearchPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-semibold text-text-primary tracking-tight">Search</h2>
+        <h2 className="text-2xl font-semibold text-text-primary tracking-tight">
+          Search
+        </h2>
         <p className="text-sm text-text-secondary mt-1">
           Search through your indexed documents using semantic search
         </p>
@@ -81,7 +83,7 @@ export function SearchPage() {
               max={20}
               value={limit}
               onChange={(e) => setLimit(parseInt(e.target.value))}
-              className="w-full h-2 bg-bg-primary rounded-lg appearance-none cursor-pointer accent-primary-500"
+              className="w-full"
             />
           </div>
         </form>
