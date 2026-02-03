@@ -114,11 +114,11 @@ pnpm install
 pnpm run dev
 ```
 
-The React frontend will be available at `http://localhost:5777`.
+The React frontend will be available at `http://localhost:5173`.
 
 #### 4. Access the Services
 
-- **React Frontend**: http://localhost:5777
+- **React Frontend**: http://localhost:5173
 - **API Documentation**: http://localhost:8000/docs
 
 ### Docker Deployment
@@ -149,7 +149,7 @@ The modern React SPA provides an intuitive interface for all operations:
 4. **Index Info**: View vector database statistics
 5. **Settings**: Configure API URL, project ID, and theme preferences
 
-**Learning Assistant**: A dedicated interface for the AI/Data Science reference corpus (project ID 10). Ask questions about maths, statistics, coding, ML, DL, GenAI, and System Design.
+**Learning Assistant**: A dedicated interface for the AI/Data Science reference corpus. Ask questions about maths, statistics, coding, ML, DL, GenAI, and System Design.
 
 ### API Endpoints
 
@@ -158,7 +158,6 @@ The modern React SPA provides an intuitive interface for all operations:
 3. **Index** chunks to the vector database via `POST /api/v1/nlp/index/push/{project_id}`
 4. **Ask** questions via `POST /api/v1/nlp/index/answer/{project_id}`
 
-**Learning books corpus**: The project ID set by `LEARNING_BOOKS_PROJECT_ID` (default: 10) is reserved for the AI/Data Science references corpus (maths, statistics, coding, ML, DL, GenAI, system design). Use this fixed ID for upload, process, index, and search when using the learning assistant.
 
 For full API documentation, see [API.md](API.md).
 
@@ -241,7 +240,7 @@ pnpm install
 pnpm run dev
 ```
 
-Access the React frontend at `http://localhost:5777`.
+Access the React frontend at `http://localhost:5173`.
 
 ### Streamlit UI (Legacy)
 
