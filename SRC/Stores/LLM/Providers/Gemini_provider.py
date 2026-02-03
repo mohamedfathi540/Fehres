@@ -96,7 +96,7 @@ class GeminiProvider(LLMInterface):
                 return response.text
                 
             except Exception as e:
-                is_rate_limit = "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)
+                is_rate_limit = "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "503" in str(e) or "UNAVAILABLE" in str(e)
                 if is_rate_limit:
                     if attempt < retries:
                         wait_time = 4 * (2 ** attempt) # 4, 8, 16 
@@ -144,7 +144,7 @@ class GeminiProvider(LLMInterface):
                 
                 
             except Exception as e:
-                is_rate_limit = "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)
+                is_rate_limit = "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "503" in str(e) or "UNAVAILABLE" in str(e)
                 if is_rate_limit:
                     if attempt < retries:
                         wait_time = 4 * (2 ** attempt) # 4, 8, 16
