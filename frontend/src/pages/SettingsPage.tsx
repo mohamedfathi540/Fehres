@@ -36,7 +36,7 @@ export function SettingsPage() {
               type="text"
               value={apiUrl}
               onChange={(e) => setApiUrl(e.target.value)}
-              placeholder="http://localhost:8000/api/v1"
+              placeholder="/api/v1"
               className="w-full px-4 py-2 bg-bg-tertiary border border-border rounded-md text-text-primary focus:outline-none focus:border-primary-600 transition-all"
             />
             <p className="text-xs text-text-muted mt-1">
@@ -73,14 +73,12 @@ export function SettingsPage() {
           </div>
           <button
             onClick={toggleTheme}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              theme === "dark" ? "bg-primary-600" : "bg-bg-hover"
-            }`}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${theme === "dark" ? "bg-primary-600" : "bg-bg-hover"
+              }`}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                theme === "dark" ? "translate-x-6" : "translate-x-1"
-              }`}
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${theme === "dark" ? "translate-x-6" : "translate-x-1"
+                }`}
             />
           </button>
         </div>
@@ -134,7 +132,7 @@ export function SettingsPage() {
             <div className="text-xs text-text-muted mt-1">Vector DB</div>
           </a>
           <a
-            href="http://localhost:8000/docs"
+            href="/docs"
             target="_blank"
             rel="noopener noreferrer"
             className="p-4 bg-bg-tertiary rounded-md border border-border hover:border-primary-600 transition-colors text-center"
