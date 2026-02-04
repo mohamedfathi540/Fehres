@@ -28,7 +28,7 @@ class processcontroller (basecontroller) :
         self.project_path = projectcontroller().get_project_path(project_id = project_id)
 
     def get_file_extension(self , file_id : str) :
-        return os.path.splitext(file_id)[-1]
+        return os.path.splitext(file_id)[-1].lower()
         
 
     def get_file_loader(self,file_id : str ) :
