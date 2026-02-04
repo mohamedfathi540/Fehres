@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 interface CardProps {
   children: ReactNode;
   className?: string;
+  contentClassName?: string;
   title?: string;
   subtitle?: string;
   actions?: ReactNode;
@@ -12,6 +13,7 @@ interface CardProps {
 export function Card({
   children,
   className,
+  contentClassName,
   title,
   subtitle,
   actions,
@@ -38,7 +40,7 @@ export function Card({
           {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
         </div>
       )}
-      <div className="p-6">{children}</div>
+      <div className={cn("p-6", contentClassName)}>{children}</div>
     </div>
   );
 }
