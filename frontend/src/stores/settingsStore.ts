@@ -23,7 +23,7 @@ export const useSettingsStore = create<SettingsState>()(
     persist(
         (set) => ({
             // Default values
-            apiUrl: 'http://localhost:8000/api/v1',
+            apiUrl: '/api/v1',
             projectId: 1,
             theme: 'dark',
             chatHistory: [],
