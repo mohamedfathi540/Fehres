@@ -257,3 +257,106 @@ See [TESTING.md](TESTING.md) for comprehensive testing documentation.
 ## License
 
 Apache License 2.0 - see [LICENCE](LICENCE) for details.
+
+## Self-Hosting Guide
+
+Turn an old computer into a professional server for your "Fehres" project using **Self-Hosting**. This setup bypasses home network restrictions using Cloudflare Tunnel.
+
+### Phase 1: The Hardware & OS
+
+**Hardware Requirements:**
+- **Computer**: An old laptop (recommended for built-in battery/UPS) or desktop PC.
+- **RAM**: 4GB minimum.
+- **Connection**: Connect via Ethernet cable for stability.
+
+**OS Installation:**
+1. Download **Ubuntu Server 24.04 LTS**.
+2. Flash it to a USB stick (using Rufus or BalenaEtcher).
+3. Install on your computer. **Important**: Check the box "Install OpenSSH Server" during installation.
+
+### Phase 2: Install Project
+
+Login via SSH: `ssh your_username@local_ip`
+
+**1. Install Docker Engine**
+
+```bash
+# Add Docker's official GPG key:
+sudo apt-get update
+sudo apt-get install ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add the repository to Apt sources:
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+
+# Install Docker
+sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+
+**2. Clone and Configure**
+
+```bash
+git clone https://github.com/mohamedfathi540/fehres.git
+cd fehres/Docker
+
+# Create your .env files (ensure detailed configuration)
+# START THE APP
+docker compose up -d --build
+```
+
+> **Note**: Ensure you are using the updated Nginx configuration to correctly serve both Frontend and API.
+
+### Phase 3: Expose to the Internet (Cloudflare Tunnel)
+
+Bypass dynamic IPs and blocked ports using a secure tunnel.
+
+**1. Install cloudflared**
+
+```bash
+curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+sudo dpkg -i cloudflared.deb
+```
+
+**2. Start a Temporary Tunnel**
+
+```bash
+cloudflared tunnel --url http://localhost:80
+```
+This will print a random public URL (e.g., `https://random-name.trycloudflare.com`). Test this link to see your project.
+
+**3. Make it Permanent (Production)**
+- Sign up for a free Cloudflare account.
+- Go to **Zero Trust Dashboard > Networks > Tunnels**.
+- Create a Tunnel and follow instructions to install the connector.
+- **Configure Public Hostname**:
+  - Public Hostname: `fehres.yourdomain.com`
+  - Service: `HTTP -> localhost:80`
+
+### Troubleshooting
+
+**Error: "Cannot connect to the Docker daemon"**
+If `docker compose up` fails with this error, try these fixes:
+
+**Solution 1: Switch Context (Most Common Fix)**
+```bash
+docker context use default
+```
+
+**Solution 2: Start Docker Service**
+```bash
+sudo systemctl start docker
+sudo systemctl enable docker
+```
+
+**Warning: Electricity & Data**
+- **Electricity**: Configure BIOS to "Power On After Power Failure".
+- **Data Usage**: Hosting AI models and files consumes quota. Monitor your internet usage.
+
+
+
