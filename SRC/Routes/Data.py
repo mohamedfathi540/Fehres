@@ -1,4 +1,5 @@
 from fastapi import FastAPI,APIRouter,Depends,UploadFile,status,Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 import os
 from Helpers.Config import get_settings,settings
@@ -272,7 +273,7 @@ async def process_endpoint (request :Request ,project_id :int ,process_request :
 
     for asset_id, file_id in project_files_ids.items():
         try:
-            file_content = Process_Controller.get_file_content(file_id=file_id)
+            file_content = await run_in_threadpool(Process_Controller.get_file_content, file_id=file_id)
         except Exception as e:
             err_msg = str(e)
             logger.error("Error while processing file %s: %s", file_id, err_msg)
@@ -295,7 +296,8 @@ async def process_endpoint (request :Request ,project_id :int ,process_request :
                 },
             )
 
-        file_chunks = Process_Controller.process_file_content(
+        file_chunks = await run_in_threadpool(
+            Process_Controller.process_file_content,
             file_content = file_content,
             file_id = file_id,
             chunk_size = chunk_size,
