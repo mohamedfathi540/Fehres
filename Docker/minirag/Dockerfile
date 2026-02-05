@@ -16,10 +16,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
    
-COPY SRC/requirements.txt .
+COPY SRC/pyproject.toml SRC/uv.lock* ./
 
 ENV UV_HTTP_TIMEOUT=120
-RUN uv pip install -r requirements.txt --system
+ENV UV_SYSTEM_PYTHON=1
+RUN uv sync --frozen --no-dev
 
 COPY SRC/ .
 
@@ -32,7 +33,3 @@ COPY Docker/minirag/enterypoint.sh /enterypoint.sh
 RUN chmod +x /enterypoint.sh
 
 ENTRYPOINT ["/enterypoint.sh"]
-
-
-#Command to run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000","--workers","4"]

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
-import { useSettingsStore } from "../stores/settingsStore";
 import { getAnswer } from "../api/nlp";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -11,7 +10,6 @@ import type { ChatMessage } from "../api/types";
 
 
 export function LearningAssistantChatPage() {
-  const { projectId } = useSettingsStore();
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [contextLimit, setContextLimit] = useState(5);
@@ -24,7 +22,7 @@ export function LearningAssistantChatPage() {
 
   const answerMutation = useMutation({
     mutationFn: (text: string) =>
-      getAnswer(projectId, { text, limit: contextLimit }),
+      getAnswer({ text, limit: contextLimit }),
     onSuccess: (data) => {
       const assistantMessage: ChatMessage = {
         id: generateId(),
@@ -127,9 +125,6 @@ export function LearningAssistantChatPage() {
               <label className="text-sm text-text-secondary">
                 Context chunks: {contextLimit}
               </label>
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-text-secondary">Project ID: <span className="font-medium text-text-primary">{projectId}</span></label>
-              </div>
             </div>
             {chatHistory.length > 0 && (
               <Button variant="ghost" size="sm" onPress={clearHistory}>

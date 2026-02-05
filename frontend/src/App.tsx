@@ -8,6 +8,7 @@ import { IndexInfoPage } from "./pages/IndexInfoPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { LearningBooksAdminPage } from "./pages/LearningBooksAdminPage";
 import { LearningAssistantChatPage } from "./pages/LearningAssistantChatPage";
+import { LibraryDocsPage } from "./pages/LibraryDocsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,6 +28,7 @@ function App() {
             <Route index element={<ChatPage />} />
             <Route path="learning" element={<LearningAssistantChatPage />} />
             <Route path="learning-books" element={<LearningBooksAdminPage />} />
+            <Route path="library-docs" element={<LibraryDocsPage />} />
             <Route path="upload" element={<UploadPage />} />
             <Route path="search" element={<SearchPage />} />
             <Route path="index" element={<IndexInfoPage />} />

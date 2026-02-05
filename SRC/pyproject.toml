@@ -27,4 +27,21 @@ dependencies = [
     "starlette-exporter==0.23.0",
     "tqdm",
     "uvicorn[standard]==0.29.0",
+    "beautifulsoup4>=4.12.0",
+    "requests>=2.31.0",
+    "langchain-community>=0.0.20",
+    "lxml>=4.9.0",
+    "urllib3>=2.0.0",
+    "numpy",
+    "rank-bm25",
+    "joblib",
+    "nltk",
+    "boto3>=1.42.14",
+    "playwright>=1.40.0",
 ]
+[project.optional-dependencies]
+# Kept for backwards compatibility; playwright is now a main dependency
+scraping-browser = ["playwright>=1.40.0"]
+
+[tool.uv]
+link-mode = "copy"

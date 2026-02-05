@@ -1,14 +1,24 @@
 // Request Types
 
 export interface ProcessRequest {
-    chunk_size: number;
-    overlap_size: number;
     Do_reset: number;
     file_id?: string;
 }
 
+export interface ScrapeRequest {
+    base_url: string;
+    Do_reset: number;
+}
+
+export interface ScrapeResponse {
+    signal: string;
+    Inserted_chunks: number;
+    processed_pages: number;
+    total_pages_scraped: number;
+}
+
 export interface PushRequest {
-    do_reset: boolean;
+    do_reset: number;
 }
 
 export interface SearchRequest {

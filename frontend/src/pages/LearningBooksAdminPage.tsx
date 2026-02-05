@@ -7,7 +7,6 @@ import {
   CheckCircleIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
-import { useSettingsStore } from "../stores/settingsStore";
 import { processFiles, resetProject } from "../api/data";
 import { pushToIndex } from "../api/nlp";
 import { Button } from "../components/ui/Button";
@@ -21,16 +20,13 @@ type Message = { type: Status; text: string } | null;
 export function LearningBooksAdminPage() {
   const [resetChunks, setResetChunks] = useState(false);
   const [resetIndex, setResetIndex] = useState(false);
-  const { projectId, setProjectId } = useSettingsStore();
   const [processMessage, setProcessMessage] = useState<Message>(null);
   const [indexMessage, setIndexMessage] = useState<Message>(null);
   const [resetMessage, setResetMessage] = useState<Message>(null);
 
   const processMutation = useMutation({
     mutationFn: () =>
-      processFiles(projectId, {
-        chunk_size: 2000,
-        overlap_size: 200,
+      processFiles({
         Do_reset: resetChunks ? 1 : 0,
       }),
     onSuccess: () => {
@@ -47,7 +43,7 @@ export function LearningBooksAdminPage() {
 
   const indexMutation = useMutation({
     mutationFn: () =>
-      pushToIndex(projectId, { do_reset: resetIndex }),
+      pushToIndex({ do_reset: resetIndex ? 1 : 0 }),
     onSuccess: (data) => {
       setIndexMessage({
         type: "success",
@@ -69,7 +65,7 @@ export function LearningBooksAdminPage() {
   const runReset = async () => {
     setResetMessage(null);
     try {
-      await resetProject(projectId);
+      await resetProject();
       setResetMessage({ type: "success", text: "Project data deleted." });
       setProcessMessage(null);
       setIndexMessage(null);
@@ -100,24 +96,9 @@ export function LearningBooksAdminPage() {
         </h2>
         <p className="text-sm text-text-secondary mt-1">
           Process and index the reference corpus. Upload files first from Upload
-          & Process with project ID 10.
+          & Process page.
         </p>
       </div>
-
-      <Card title="Configuration">
-        <div className="flex items-center gap-4">
-          <label className="text-sm font-medium text-text-secondary">
-            Target Project ID:
-          </label>
-          <input
-            type="number"
-            min={1}
-            value={projectId}
-            onChange={(e) => setProjectId(parseInt(e.target.value) || 0)}
-            className="w-20 px-3 py-2 bg-bg-primary border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary-500"
-          />
-        </div>
-      </Card>
 
       <Card
         title="Actions"

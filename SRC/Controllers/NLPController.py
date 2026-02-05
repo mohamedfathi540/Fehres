@@ -84,6 +84,8 @@ class NLPController (basecontroller) :
             from Stores.Sparse import BM25Index
             candidate_mult = 2
             dense_limit = max(limit * candidate_mult, 10)
+            
+            # Get dense search results
             results = await self.vectordb_client.search_by_vector(
                 collection_name=collection_name,
                 vector=query_vector,
@@ -91,22 +93,59 @@ class NLPController (basecontroller) :
             )
             if not results or len(results) == 0:
                 return False
-            bm25_hits = BM25Index.search(project.project_id, text, top_k=dense_limit)
-            bm25_by_id = {cid: score for cid, score in bm25_hits}
-            bm25_max = max(bm25_by_id.values()) if bm25_by_id else 1.0
+            
+            # Get BM25 results
+            try:
+                bm25_hits = BM25Index.search(int(project.project_id), text, top_k=dense_limit)
+                bm25_by_id = {int(cid): float(score) for cid, score in bm25_hits}
+            except Exception:
+                # If BM25 fails, fall back to dense search only
+                return results[:limit]
+            
+            # Normalize BM25 scores to [0, 1] using min-max normalization
+            if bm25_by_id:
+                bm25_scores = list(bm25_by_id.values())
+                bm25_min = min(bm25_scores)
+                bm25_max = max(bm25_scores)
+                bm25_range = bm25_max - bm25_min if bm25_max > bm25_min else 1.0
+            else:
+                bm25_min = 0.0
+                bm25_range = 1.0
+            
+            # Normalize dense scores to [0, 1] if needed
+            dense_scores = [getattr(doc, "score", 0.0) for doc in results]
+            dense_min = min(dense_scores) if dense_scores else 0.0
+            dense_max = max(dense_scores) if dense_scores else 1.0
+            dense_range = dense_max - dense_min if dense_max > dense_min else 1.0
+            
+            # Combine scores
             combined = []
             for doc in results:
                 cid = getattr(doc, "chunk_id", None)
-                bm25_norm = (bm25_by_id.get(cid, 0) / bm25_max) if bm25_max > 0 else 0.0
-                score = hybrid_alpha * doc.score + (1.0 - hybrid_alpha) * bm25_norm
+                if cid is not None:
+                    cid = int(cid)
+                
+                # Normalize dense score to [0, 1]
+                dense_score = getattr(doc, "score", 0.0)
+                dense_norm = (dense_score - dense_min) / dense_range if dense_range > 0 else 0.0
+                
+                # Normalize BM25 score to [0, 1]
+                bm25_raw = bm25_by_id.get(cid, 0.0)
+                bm25_norm = (bm25_raw - bm25_min) / bm25_range if bm25_range > 0 else 0.0
+                
+                # Combine: alpha * dense + (1-alpha) * bm25
+                combined_score = hybrid_alpha * dense_norm + (1.0 - hybrid_alpha) * bm25_norm
+                
                 combined.append(
                     RetrivedDocument(
                         text=doc.text,
-                        score=score,
+                        score=combined_score,
                         metadata=getattr(doc, "metadata", None),
                         chunk_id=cid,
                     )
                 )
+            
+            # Sort by combined score descending
             combined.sort(key=lambda d: d.score, reverse=True)
             return combined[:limit]
 

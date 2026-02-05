@@ -1,5 +1,15 @@
-from pydantic_settings import BaseSettings ,SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 from typing import List, Optional
+
+
+def _env_bool(v):
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        return v.strip().lower() in ("1", "true", "yes", "on")
+    return bool(v)
+
 
 class settings (BaseSettings):
 
@@ -52,6 +62,10 @@ class settings (BaseSettings):
     LEARNING_BOOKS_CHUNK_SIZE : int = 2000
     LEARNING_BOOKS_OVERLAP_SIZE : int = 200
 
+    # Documentation chunking defaults (backend-controlled)
+    DOC_CHUNK_SIZE : int = 1000
+    DOC_OVERLAP_SIZE : int = 200
+
     # Optional JSON mapping of filename (or pattern) to domain for chunk metadata e.g. {"statistics.pdf": "statistics", "ml-intro.pdf": "ml"}
     BOOK_DOMAIN_MAPPING : Optional[str] = None
 
@@ -61,6 +75,23 @@ class settings (BaseSettings):
 
     # BM25 index persistence directory (default: under SRC/data/bm25)
     BM25_INDEX_DIR : Optional[str] = None
+
+    # Web scraping configuration
+    SCRAPING_MAX_PAGES : int = 1000
+    SCRAPING_RATE_LIMIT : float = 0.5
+    SCRAPING_USER_AGENT : str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    SCRAPING_TIMEOUT : int = 120
+    SCRAPING_DEBUG : bool = False
+    SCRAPING_USE_BROWSER : bool = True
+    SCRAPING_IGNORE_ROBOTS : bool = False
+
+    # Default project ID for single-project system
+    DEFAULT_PROJECT_ID : int = 1
+
+    @field_validator("SCRAPING_DEBUG", "SCRAPING_USE_BROWSER", "SCRAPING_IGNORE_ROBOTS", mode="before")
+    @classmethod
+    def parse_scraping_bool(cls, v):
+        return _env_bool(v) if v is not None else False
 
     model_config = SettingsConfigDict(env_file=".env")
 

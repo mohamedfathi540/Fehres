@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
-import { useSettingsStore } from "../stores/settingsStore";
 import { searchIndex } from "../api/nlp";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -9,7 +8,6 @@ import { truncateText } from "../utils/helpers";
 import type { SearchResult } from "../api/types";
 
 export function SearchPage() {
-  const { projectId } = useSettingsStore();
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(5);
   const [expandedResults, setExpandedResults] = useState<Set<number>>(
@@ -17,7 +15,7 @@ export function SearchPage() {
   );
 
   const searchMutation = useMutation({
-    mutationFn: () => searchIndex(projectId, { text: query, limit }),
+    mutationFn: () => searchIndex({ text: query, limit }),
   });
 
   const handleSearch = (e: React.FormEvent) => {

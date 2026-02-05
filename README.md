@@ -92,6 +92,8 @@ Install dependencies:
 ```bash
 uv sync
 # or: pip install -r requirements.txt
+# For documentation scraping (JS-rendered sites): run once from SRC/
+uv run playwright install chromium
 ```
 
 Run database migrations:
@@ -251,6 +253,54 @@ streamlit run app.py
 ```
 
 See [streamlit_app/README.md](streamlit_app/README.md) for more details.
+
+### Testing the documentation scraper
+
+Use these steps to verify scraping and to see why a site might return 0 pages.
+
+**1. One-URL debug (no full scrape)**  
+With the backend running (e.g. `docker compose up` or local FastAPI on port 8000), call the debug endpoint with the URL you want to scrape. It returns raw HTML length, extracted text length, and a short snippet so you can see if the problem is “server returns little HTML” or “extraction strips everything”.
+
+```bash
+# Replace the URL if needed; backend must be on port 8000 (or use your API base URL)
+curl "http://localhost:8000/api/v1/data/scrape-debug?url=https://docs.flet.dev/"
+```
+
+Example response:
+
+```json
+{
+  "url": "https://docs.flet.dev/",
+  "status_code": 200,
+  "content_type": "text/html; charset=utf-8",
+  "html_len": 125000,
+  "extracted_len": 8400,
+  "extracted_snippet": "Introduction Flet is a framework...",
+  "error": null
+}
+```
+
+- Scraping uses **Playwright** (headless Chromium) by default (`SCRAPING_USE_BROWSER=1`). After `uv sync`, run once: `uv run playwright install chromium`.
+- If `html_len` is large but `extracted_len` is small, check logs or set `SCRAPING_DEBUG=1` to inspect the first URL.
+
+**2. Full scrape from the UI**
+
+1. Open the app (e.g. http://localhost:5173 or http://localhost).
+2. Go to **Library docs** (or the page where you enter a documentation URL).
+3. Enter the base URL (e.g. `https://docs.flet.dev/`) and start the scrape.
+4. In the backend logs (e.g. `docker compose logs -f fastapi`), you’ll see:
+   - Per-page skip reasons: `non-200`, `non-html`, `insufficient_content extracted_len=...`, or `exception ...`
+   - If `SCRAPING_DEBUG=1` in your env, the first URL also logs `html_len`, `extracted_len`, and a snippet.
+
+**3. Optional: enable debug for the first URL**
+
+In your backend env (e.g. `Docker/env/.env.app` or `.env`), set:
+
+```bash
+SCRAPING_DEBUG=1
+```
+
+Restart the backend and run a scrape; the first URL’s debug line will appear in the logs.
 
 See [TESTING.md](TESTING.md) for comprehensive testing documentation.
 

@@ -16,14 +16,16 @@ nlp_router = APIRouter(
     tags = ["api_v1","nlp"]
 )
 
-@nlp_router.post("/index/push/{project_id}")
-async def index_project (request :Request ,project_id :int ,push_request : PushRequest) :
+@nlp_router.post("/index/push")
+async def index_project (request :Request ,push_request : PushRequest) :
 
+    settings = get_settings()
+    default_project_id = settings.DEFAULT_PROJECT_ID
 
     # get project
     project_model = await projectModel.create_instance(db_client=request.app.db_client)
     chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
-    project = await project_model.get_project_or_create_one(project_id=project_id)
+    project = await project_model.get_project_or_create_one(project_id=default_project_id)
     
     if not project :
         return JSONResponse(status_code=status.HTTP_404_NOT_FOUND,
@@ -101,12 +103,15 @@ async def index_project (request :Request ,project_id :int ,push_request : PushR
         content={"Signal" : ResponseSignal.INSERT_INTO_VECTOR_DB_DONE.value ,
                  "InsertedItemsCount" : inserted_items_count})
 
-@nlp_router.get("/index/info/{project_id}")
-async def get_project_index_info (request :Request ,project_id :int) :
+@nlp_router.get("/index/info")
+async def get_project_index_info (request :Request) :
+
+    settings = get_settings()
+    default_project_id = settings.DEFAULT_PROJECT_ID
 
     project_model = await projectModel.create_instance(db_client=request.app.db_client)
     chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
-    project = await project_model.get_project_or_create_one(project_id=project_id)
+    project = await project_model.get_project_or_create_one(project_id=default_project_id)
     
     if not project :
         return JSONResponse(status_code=status.HTTP_404_NOT_FOUND,
@@ -125,13 +130,15 @@ async def get_project_index_info (request :Request ,project_id :int) :
                  "CollectionInfo" : collection_info})
 
 
-@nlp_router.post("/index/search/{project_id}")
-async def search_index(request :Request ,project_id :int , search_request : SearchRequest) :
-    
+@nlp_router.post("/index/search")
+async def search_index(request :Request , search_request : SearchRequest) :
+
+    settings = get_settings()
+    default_project_id = settings.DEFAULT_PROJECT_ID
     
     project_model = await projectModel.create_instance(db_client=request.app.db_client)
     chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
-    project = await project_model.get_project_or_create_one(project_id=project_id)
+    project = await project_model.get_project_or_create_one(project_id=default_project_id)
     
     if not project :
         return JSONResponse(status_code=status.HTTP_404_NOT_FOUND,
@@ -159,13 +166,15 @@ async def search_index(request :Request ,project_id :int , search_request : Sear
                  })
 
 
-@nlp_router.post("/index/answer/{project_id}")
-async def answer_index(request :Request ,project_id :int , search_request : SearchRequest) :
-    
+@nlp_router.post("/index/answer")
+async def answer_index(request :Request , search_request : SearchRequest) :
+
+    settings = get_settings()
+    default_project_id = settings.DEFAULT_PROJECT_ID
     
     project_model = await projectModel.create_instance(db_client=request.app.db_client)
     chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
-    project = await project_model.get_project_or_create_one(project_id=project_id)
+    project = await project_model.get_project_or_create_one(project_id=default_project_id)
     
     if not project :
         return JSONResponse(status_code=status.HTTP_404_NOT_FOUND,

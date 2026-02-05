@@ -9,14 +9,14 @@ import { generateId, formatDate } from "../utils/helpers";
 import type { ChatMessage } from "../api/types";
 
 export function ChatPage() {
-  const { projectId, chatHistory, addMessage, clearHistory } =
+  const { chatHistory, addMessage, clearHistory } =
     useSettingsStore();
   const [question, setQuestion] = useState("");
   const [contextLimit, setContextLimit] = useState(5);
 
   const answerMutation = useMutation({
     mutationFn: (text: string) =>
-      getAnswer(projectId, { text, limit: contextLimit }),
+      getAnswer({ text, limit: contextLimit }),
     onSuccess: (data) => {
       const assistantMessage: ChatMessage = {
         id: generateId(),

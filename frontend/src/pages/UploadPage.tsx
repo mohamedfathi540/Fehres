@@ -5,7 +5,6 @@ import {
   DocumentIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import { useSettingsStore } from "../stores/settingsStore";
 import { uploadFile, processFiles } from "../api/data";
 import { pushToIndex } from "../api/nlp";
 import { Button } from "../components/ui/Button";
@@ -15,10 +14,7 @@ import { formatFileSize, generateId } from "../utils/helpers";
 import type { UploadedFile } from "../api/types";
 
 export function UploadPage() {
-  const { projectId } = useSettingsStore();
   const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [chunkSize, setChunkSize] = useState(512);
-  const [overlapSize, setOverlapSize] = useState(50);
   const [doReset, setDoReset] = useState(false);
   const [resetIndex, setResetIndex] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -31,7 +27,7 @@ export function UploadPage() {
         { id: fileId, name: file.name, size: file.size, status: "uploading" },
       ]);
       try {
-        const result = await uploadFile(projectId, file, () => {
+        const result = await uploadFile(file, () => {
           // Progress tracking could be added here
         });
         setFiles((prev) =>
@@ -57,15 +53,13 @@ export function UploadPage() {
 
   const processMutation = useMutation({
     mutationFn: () =>
-      processFiles(projectId, {
-        chunk_size: chunkSize,
-        overlap_size: overlapSize,
+      processFiles({
         Do_reset: doReset ? 1 : 0,
       }),
   });
 
   const indexMutation = useMutation({
-    mutationFn: () => pushToIndex(projectId, { do_reset: resetIndex }),
+    mutationFn: () => pushToIndex({ do_reset: resetIndex ? 1 : 0 }),
   });
 
   const handleDrop = useCallback(
@@ -179,45 +173,7 @@ export function UploadPage() {
 
       {/* Processing Configuration */}
       <Card title="Processing Configuration">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-2">
-              Chunk Size: {chunkSize}
-            </label>
-            <input
-              type="range"
-              min={100}
-              max={2000}
-              step={50}
-              value={chunkSize}
-              onChange={(e) => setChunkSize(parseInt(e.target.value))}
-              className="w-full"
-            />
-            <p className="text-xs text-text-muted mt-1">
-              Number of characters per chunk
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-2">
-              Overlap Size: {overlapSize}
-            </label>
-            <input
-              type="range"
-              min={0}
-              max={200}
-              step={10}
-              value={overlapSize}
-              onChange={(e) => setOverlapSize(parseInt(e.target.value))}
-              className="w-full"
-            />
-            <p className="text-xs text-text-muted mt-1">
-              Overlap between consecutive chunks
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 flex items-center gap-2">
+        <div className="mt-4 flex items-center gap-2 mb-6">
           <input
             type="checkbox"
             id="doReset"

@@ -1,19 +1,17 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
-import { useSettingsStore } from "../stores/settingsStore";
 import { getIndexInfo } from "../api/nlp";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { StatusBadge } from "../components/ui/StatusBadge";
 
 export function IndexInfoPage() {
-  const { projectId } = useSettingsStore();
   const [showJson, setShowJson] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["indexInfo", projectId],
-    queryFn: () => getIndexInfo(projectId),
+    queryKey: ["indexInfo"],
+    queryFn: () => getIndexInfo(),
     enabled: false, // Don't fetch automatically
   });
 
@@ -63,14 +61,6 @@ export function IndexInfoPage() {
           </div>
         </Card>
 
-        <Card className="text-center">
-          <div className="text-sm font-medium text-text-secondary uppercase tracking-wider mb-2">
-            Project ID
-          </div>
-          <div className="text-4xl font-bold text-text-primary">
-            {projectId}
-          </div>
-        </Card>
       </div>
 
       {/* Error State */}

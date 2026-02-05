@@ -1,0 +1,46 @@
+# Development infrastructure - databases and optional monitoring
+# Backend and frontend run locally for faster iteration
+
+services:
+  # PostgreSQL (PGvector)
+  pgvector:
+    image: pgvector/pgvector:0.8.0-pg17
+    container_name: fehres-pgvector
+    ports:
+      - "5433:5432"
+    volumes:
+      - "pgvector_dev:/var/lib/postgresql/data"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: minirag
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Qdrant (Vector DB) - optional, comment out if using PGVECTOR only
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: fehres-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - "qdrant_dev:/qdrant/storage"
+    networks:
+      - backend
+    restart: unless-stopped
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  pgvector_dev:
+  qdrant_dev:
