@@ -17,7 +17,10 @@ export function IndexInfoPage() {
 
   const collectionInfo = data?.CollectionInfo;
   const vectorsCount =
-    collectionInfo?.vectors_count || collectionInfo?.points_count || 0;
+    collectionInfo?.vectors_count ??
+    collectionInfo?.points_count ??
+    collectionInfo?.record_count ??
+    null;
 
   return (
     <div className="space-y-6">
@@ -57,7 +60,9 @@ export function IndexInfoPage() {
             Total Vectors
           </div>
           <div className="text-4xl font-bold text-primary-400">
-            {vectorsCount.toLocaleString()}
+            {typeof vectorsCount === "number" ?
+              vectorsCount.toLocaleString()
+            : "-"}
           </div>
         </Card>
 

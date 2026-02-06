@@ -2,13 +2,10 @@ import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   ChatBubbleLeftRightIcon,
-  ArrowUpTrayIcon,
-  MagnifyingGlassIcon,
   ChartBarIcon,
   Cog6ToothIcon,
-  AcademicCapIcon,
-  BookOpenIcon,
   GlobeAltIcon,
+  MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { StatusBadge } from "../ui/StatusBadge";
@@ -17,10 +14,7 @@ import { checkHealth } from "../../api/base";
 
 const navigation = [
   { name: "Chat", href: "/", icon: ChatBubbleLeftRightIcon },
-  { name: "Learning Assistant", href: "/learning", icon: AcademicCapIcon },
-  { name: "Learning Books", href: "/learning-books", icon: BookOpenIcon },
   { name: "Library Docs", href: "/library-docs", icon: GlobeAltIcon },
-  { name: "Upload & Process", href: "/upload", icon: ArrowUpTrayIcon },
   { name: "Search", href: "/search", icon: MagnifyingGlassIcon },
   { name: "Index Info", href: "/index", icon: ChartBarIcon },
   { name: "Settings", href: "/settings", icon: Cog6ToothIcon },

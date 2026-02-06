@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useSettingsStore } from "../stores/settingsStore";
 import { getAnswer } from "../api/nlp";
 import { Button } from "../components/ui/Button";
@@ -12,7 +14,8 @@ export function ChatPage() {
   const { chatHistory, addMessage, clearHistory } =
     useSettingsStore();
   const [question, setQuestion] = useState("");
-  const [contextLimit, setContextLimit] = useState(5);
+  const contextLimit = 10;
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const answerMutation = useMutation({
     mutationFn: (text: string) =>
@@ -56,8 +59,12 @@ export function ChatPage() {
     setQuestion("");
   };
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatHistory, answerMutation.isPending]);
+
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+    <div className="flex flex-col h-[calc(100vh-4rem)] min-h-0">
       {/* Header */}
       <div className="mb-6">
         <h2 className="text-2xl font-semibold text-text-primary tracking-tight">
@@ -69,9 +76,12 @@ export function ChatPage() {
       </div>
 
       {/* Chat Container */}
-      <Card className="flex-1 flex flex-col overflow-hidden">
+      <Card
+        className="flex flex-col flex-1 overflow-hidden min-h-0"
+        contentClassName="flex flex-col flex-1 min-h-0 p-0"
+      >
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
           {chatHistory.length === 0 ?
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
@@ -97,7 +107,15 @@ export function ChatPage() {
                     : "bg-bg-tertiary text-text-primary border border-border rounded-bl-none"
                   }`}
                 >
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  {message.role === "assistant" ? (
+                    <div className="chat-markdown text-sm">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                  )}
                   <span className="text-xs opacity-70 mt-2 block">
                     {formatDate(message.timestamp)}
                   </span>
@@ -116,31 +134,18 @@ export function ChatPage() {
               </div>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Input Area */}
         <div className="border-t border-border p-4 bg-bg-secondary">
-          {/* Context Slider */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm text-text-secondary">
-                Context Chunks: {contextLimit}
-              </label>
-              {chatHistory.length > 0 && (
-                <Button variant="ghost" size="sm" onPress={clearHistory}>
-                  Clear History
-                </Button>
-              )}
+          {chatHistory.length > 0 && (
+            <div className="mb-3 flex justify-end">
+              <Button variant="ghost" size="sm" onPress={clearHistory}>
+                Clear History
+              </Button>
             </div>
-            <input
-              type="range"
-              min={1}
-              max={10}
-              value={contextLimit}
-              onChange={(e) => setContextLimit(parseInt(e.target.value))}
-              className="w-full"
-            />
-          </div>
+          )}
 
           {/* Input Form */}
           <form onSubmit={handleSubmit} className="flex gap-2">

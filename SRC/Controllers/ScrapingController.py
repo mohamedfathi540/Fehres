@@ -6,7 +6,7 @@ from .BaseController import basecontroller
 from Helpers.Config import get_settings
 from Utils.ContentFilter import extract_main_content, extract_links, extract_metadata, is_beneficial_link
 from langchain_community.document_loaders import AsyncHtmlLoader
-from typing import List, Set, Dict, Optional
+from typing import List, Set, Dict, Optional, Iterator
 import requests
 from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
@@ -102,8 +102,7 @@ class ScrapingController(basecontroller):
         Uses BFS to discover all pages.
         """
         if max_pages is None:
-            # Temporary limit: 200 pages
-            max_pages = min(200, self.settings.SCRAPING_MAX_PAGES)
+            max_pages = self.settings.SCRAPING_MAX_PAGES
         
         visited: Set[str] = set()
         to_visit: List[str] = [base_url]
@@ -167,8 +166,7 @@ class ScrapingController(basecontroller):
         """
         Discover pages using sitemap first, fallback to crawling.
         """
-        # Temporary limit: 200 pages
-        max_pages_limit = min(200, self.settings.SCRAPING_MAX_PAGES)
+        max_pages_limit = self.settings.SCRAPING_MAX_PAGES
         
         # Try sitemap first
         urls = self.discover_pages_from_sitemap(base_url)
@@ -281,16 +279,7 @@ class ScrapingController(basecontroller):
         skipped_by_robots = 0
         robots_parser = self._check_robots_txt(base_url)
         
-        # Temporary limit: 200 pages
-        temp_page_limit = 200
-        
         for i, url in enumerate(urls, 1):
-            # Check temporary page limit
-            if len(scraped_pages) >= temp_page_limit:
-                logger.info(f"[SCRAPE] Reached temporary limit of {temp_page_limit} pages. Stopping.")
-                print(f"[SCRAPE] Reached temporary limit of {temp_page_limit} pages. Stopping.", flush=True)
-                break
-            
             # Check global cancel flag
             if GLOBAL_SCRAPE_CANCEL.get("requested"):
                 logger.info(f"[SCRAPE] Global cancel requested: {len(scraped_pages)}/{len(urls)} pages scraped")
@@ -341,6 +330,66 @@ class ScrapingController(basecontroller):
         logger.info(f"[SCRAPE] Done: {len(scraped_pages)}/{len(urls)} pages scraped")
         print(f"[SCRAPE] Successfully scraped {len(scraped_pages)} out of {len(urls)} pages", flush=True)
         return scraped_pages
+
+    def scrape_documentation_iter(
+        self,
+        base_url: str,
+        cancel_ref: Optional[Dict] = None,
+        urls: Optional[List[str]] = None,
+    ) -> Iterator[Dict]:
+        """
+        Stream scraped pages one-by-one.
+        Yields dicts with keys: url, page_data, skip_reason, index, total.
+        """
+        print(f"[SCRAPE] Starting documentation scrape (stream) for: {base_url}")
+        logger.info(f"Starting documentation scrape (stream) for: {base_url}")
+
+        if urls is None:
+            urls = self.discover_pages(base_url)
+        total = len(urls)
+        print(f"[SCRAPE] Discovered {total} pages to scrape", flush=True)
+        logger.info(f"Discovered {total} pages to scrape")
+
+        robots_parser = self._check_robots_txt(base_url)
+        for i, url in enumerate(urls, 1):
+            if GLOBAL_SCRAPE_CANCEL.get("requested"):
+                logger.info(f"[SCRAPE] Global cancel requested: {i-1}/{total} pages scraped")
+                print(f"[SCRAPE] Global cancel. Scraped {i-1}/{total} pages.", flush=True)
+                GLOBAL_SCRAPE_CANCEL["requested"] = False
+                return
+
+            if cancel_ref and cancel_ref.get("requested"):
+                logger.info(f"[SCRAPE] Cancelled by user: {i-1}/{total} pages scraped")
+                print(f"[SCRAPE] Cancelled. Scraped {i-1}/{total} pages.", flush=True)
+                return
+
+            if not self._can_fetch(robots_parser, url):
+                logger.warning(
+                    f"[SCRAPE] robots.txt disallows URL (user-agent: {self.settings.SCRAPING_USER_AGENT[:50]}...): {url}"
+                )
+                yield {
+                    "url": url,
+                    "page_data": None,
+                    "skip_reason": "robots.txt disallows URL",
+                    "index": i,
+                    "total": total,
+                }
+                continue
+
+            if i > 1:
+                time.sleep(self.settings.SCRAPING_RATE_LIMIT)
+
+            log_debug_first = (
+                i == 1 and getattr(self.settings, "SCRAPING_DEBUG", False)
+            )
+            page_data, skip_reason = self.scrape_page(url, log_debug_first=log_debug_first)
+            yield {
+                "url": url,
+                "page_data": page_data,
+                "skip_reason": skip_reason,
+                "index": i,
+                "total": total,
+            }
 
     def scrape_page_debug(self, url: str) -> Dict:
         """

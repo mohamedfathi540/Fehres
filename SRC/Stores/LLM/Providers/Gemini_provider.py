@@ -10,11 +10,13 @@ from typing import List, Union
 
 class GeminiProvider(LLMInterface):
     def __init__(self, api_key: str,
+                 api_version: str = "v1",
                  default_input_max_characters: int = 1000,
                  default_genrated_max_output_tokens: int = 8192,
                  default_genration_temperature: float = 0.2):
 
         self.api_key = api_key
+        self.api_version = api_version or "v1"
         self.default_input_max_characters = default_input_max_characters
         self.default_genrated_max_output_tokens = default_genrated_max_output_tokens
         self.default_genration_temperature = default_genration_temperature
@@ -24,7 +26,8 @@ class GeminiProvider(LLMInterface):
         self.embedding_size = None
 
         if self.api_key:
-            self.client = genai.Client(api_key=self.api_key)
+            http_options = types.HttpOptions(api_version=self.api_version)
+            self.client = genai.Client(api_key=self.api_key, http_options=http_options)
         else:
             self.client = None
             
@@ -35,6 +38,8 @@ class GeminiProvider(LLMInterface):
         self.genration_model_id = model_id
 
     def set_embedding_model(self, model_id: str, embedding_size: int):
+        if model_id and not model_id.startswith("models/"):
+            model_id = f"models/{model_id}"
         self.embedding_model_id = model_id
         self.embedding_size = embedding_size
 

@@ -35,6 +35,7 @@ class settings (BaseSettings):
     OPENAI_BASE_URL : str = None
     COHERE_API_KEY : str = None
     GEMINI_API_KEY : str = None
+    GEMINI_API_VERSION : str = "v1"
 
     GENRATION_MODEL_ID_LITERAL : List[str] = None
     EMBEDDING_MODEL_ID_LITERAL : List[str] = None
@@ -84,6 +85,9 @@ class settings (BaseSettings):
     SCRAPING_DEBUG : bool = False
     SCRAPING_USE_BROWSER : bool = True
     SCRAPING_IGNORE_ROBOTS : bool = False
+    SCRAPING_CONCURRENCY : int = 1
+    SCRAPING_EMBED_BATCH_SIZE : int = 50
+    SCRAPING_EMBED_DURING : bool = False
 
     # Default project ID for single-project system
     DEFAULT_PROJECT_ID : int = 1
