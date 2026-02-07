@@ -47,10 +47,14 @@ class NLPController (basecontroller) :
 
         texts = [c.chunk_text for c in chunks]
         metadata = [c.chunk_metadata for c in chunks]
-        vectors = self.embedding_client.embed_text(text = texts ,document_type = DocumentTypeEnum.DOCUMENT.value )
+        
+        try:
+            vectors = self.embedding_client.embed_text(text = texts ,document_type = DocumentTypeEnum.DOCUMENT.value )
+        except Exception as e:
+            return False, str(e)
 
         if not vectors:
-            return False
+            return False, "Failed to generate embeddings"
 
         _ = await self.vectordb_client.create_collection(collection_name = collection_name , do_reset = do_reset ,
                                                     embedding_size  = self.embedding_client.embedding_size)
@@ -60,7 +64,7 @@ class NLPController (basecontroller) :
                                             metadata = metadata,
                                             record_ids = chunks_ids)
 
-        return True
+        return True, "Success"
 
     async def search_vector_db_collection(self, project: Project, text: str, limit: int = 5):
         query_vector = None

@@ -25,7 +25,12 @@ class settings (BaseSettings):
     OPENAI_BASE_URL : Optional[str] = None
     COHERE_API_KEY : Optional[str] = None
     GEMINI_API_KEY : Optional[str] = None
+<<<<<<< HEAD
     LLAMA_CLOUD_API_KEY : Optional[str] = None
+=======
+    GEMINI_API_VERSION : str = "v1"
+    OLLAMA_BASE_URL : Optional[str] = None
+>>>>>>> d49b326 (-Add Hugging Face as a new LLM provider for text generation and embeddings)
     HUGGINGFACE_API_KEY : Optional[str] = None
 
     GENRATION_MODEL_ID_LITERAL : Optional[List[str]] = None

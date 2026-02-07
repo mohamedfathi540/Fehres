@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 [project]
 name = "fehres"
 version = "0.1.0"
@@ -32,3 +33,54 @@ dependencies = [
     "duckduckgo-search",
     "httpx",
 ]
+=======
+[project]
+name = "fehres"
+version = "0.1.0"
+description = "A Retrieval-Augmented Generation (RAG) system for document Q&A"
+readme = "README.md"
+requires-python = ">=3.11.14"
+dependencies = [
+    "aiofiles==23.2.1",
+    "alembic==1.14.0",
+    "asyncpg==0.30.0",
+    "cohere==5.5.8",
+    "docx2txt",
+    "fastapi==0.110.2",
+    "fastapi-health==0.4.0",
+    "google-genai",
+    "langchain",
+    "langchain-ollama",
+    "openai==1.75.0",
+    "pgvector==0.4.0",
+    "prometheus-client==0.21.1",
+    "psycopg2-binary==2.9.10",
+    "pydantic-settings==2.2.1",
+    "pymupdf==1.24.3",
+    "python-dotenv==1.0.1",
+    "python-multipart==0.0.9",
+    "qdrant-client==1.10.1",
+    "sqlalchemy==2.0.36",
+    "starlette-exporter==0.23.0",
+    "tqdm",
+    "uvicorn[standard]==0.29.0",
+    "beautifulsoup4>=4.12.0",
+    "requests>=2.31.0",
+    "langchain-community>=0.0.20",
+    "lxml>=4.9.0",
+    "urllib3>=2.0.0",
+    "numpy",
+    "rank-bm25",
+    "joblib",
+    "nltk",
+    "boto3>=1.42.14",
+    "playwright>=1.40.0",
+    "huggingface-hub>=1.2.3",
+]
+[project.optional-dependencies]
+# Kept for backwards compatibility; playwright is now a main dependency
+scraping-browser = ["playwright>=1.40.0"]
+
+[tool.uv]
+link-mode = "copy"
+>>>>>>> d49b326 (-Add Hugging Face as a new LLM provider for text generation and embeddings)

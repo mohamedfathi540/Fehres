@@ -680,7 +680,12 @@ dependencies = [
     { name = "fastapi" },
     { name = "fastapi-health" },
     { name = "google-genai" },
+<<<<<<< HEAD
     { name = "httpx" },
+=======
+    { name = "huggingface-hub" },
+    { name = "joblib" },
+>>>>>>> d49b326 (-Add Hugging Face as a new LLM provider for text generation and embeddings)
     { name = "langchain" },
     { name = "llama-parse" },
     { name = "openai" },
@@ -710,9 +715,20 @@ requires-dist = [
     { name = "fastapi", specifier = "==0.110.2" },
     { name = "fastapi-health", specifier = "==0.4.0" },
     { name = "google-genai" },
+<<<<<<< HEAD
     { name = "httpx" },
     { name = "langchain", specifier = "==0.1.20" },
     { name = "llama-parse" },
+=======
+    { name = "huggingface-hub", specifier = ">=1.2.3" },
+    { name = "joblib" },
+    { name = "langchain" },
+    { name = "langchain-community", specifier = ">=0.0.20" },
+    { name = "langchain-ollama" },
+    { name = "lxml", specifier = ">=4.9.0" },
+    { name = "nltk" },
+    { name = "numpy" },
+>>>>>>> d49b326 (-Add Hugging Face as a new LLM provider for text generation and embeddings)
     { name = "openai", specifier = "==1.75.0" },
     { name = "pgvector", specifier = "==0.4.0" },
     { name = "prometheus-client", specifier = "==0.21.1" },

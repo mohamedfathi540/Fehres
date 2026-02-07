@@ -1,5 +1,9 @@
 from .LLMEnums import LLMEnums
+<<<<<<< HEAD
 from .Providers import OpenAIProvider , CohereProvider, GeminiProvider, HuggingFaceProvider
+=======
+from .Providers import OpenAIProvider, CohereProvider, GeminiProvider, OllamaProvider, HuggingFaceProvider
+>>>>>>> d49b326 (-Add Hugging Face as a new LLM provider for text generation and embeddings)
 
 
 class LLMProviderFactory :
@@ -39,6 +43,14 @@ class LLMProviderFactory :
                 default_input_max_characters = self.config.INPUT_DEFUALT_MAX_CHARACTERS,
                 default_genrated_max_output_tokens = self.config.GENRATED_DEFUALT_MAX_OUTPUT_TOKENS,
                 default_genration_temperature = self.config.GENRATION_DEFUALT_TEMPERATURE   
+            )
+
+        if provider == LLMEnums.HUGGINGFACE.value :
+            return HuggingFaceProvider(
+                api_key = getattr(self.config, "HUGGINGFACE_API_KEY", None),
+                default_input_max_characters = self.config.INPUT_DEFUALT_MAX_CHARACTERS,
+                default_genrated_max_output_tokens = self.config.GENRATED_DEFUALT_MAX_OUTPUT_TOKENS,
+                default_genration_temperature = self.config.GENRATION_DEFUALT_TEMPERATURE
             )
 
         return None
