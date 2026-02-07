@@ -27,6 +27,7 @@ google-genai
 
 # Document Processing
 docx2txt
+numpy
 tqdm
 nltk
 rank_bm25

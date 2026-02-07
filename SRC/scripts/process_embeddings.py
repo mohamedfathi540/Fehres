@@ -88,7 +88,7 @@ async def main():
                 print(f"  - Embedding page {page}/{total_chunk_pages} ({len(chunks)} chunks)...")
                 
                 # 3. Index into Vector DB
-                success = await nlp_controller.index_into_vector_db(
+                success, msg = await nlp_controller.index_into_vector_db(
                     project=project,
                     chunks=chunks,
                     chunks_ids=chunk_ids,
@@ -98,7 +98,7 @@ async def main():
                 if success:
                     print(f"    -> Success")
                 else:
-                    print(f"    -> FAILED")
+                    print(f"    -> FAILED: {msg}")
 
     except Exception as e:
         print(f"An error occurred: {e}")

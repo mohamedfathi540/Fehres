@@ -1,5 +1,5 @@
 from .LLMEnums import LLMEnums
-from .Providers import OpenAIProvider, CohereProvider, GeminiProvider, OllamaProvider
+from .Providers import OpenAIProvider, CohereProvider, GeminiProvider, OllamaProvider, HuggingFaceProvider
 
 
 class LLMProviderFactory :
@@ -37,6 +37,14 @@ class LLMProviderFactory :
         if provider == LLMEnums.OLLAMA.value :
             return OllamaProvider(
                 base_url = getattr(self.config, "OLLAMA_BASE_URL", None),
+                default_input_max_characters = self.config.INPUT_DEFUALT_MAX_CHARACTERS,
+                default_genrated_max_output_tokens = self.config.GENRATED_DEFUALT_MAX_OUTPUT_TOKENS,
+                default_genration_temperature = self.config.GENRATION_DEFUALT_TEMPERATURE
+            )
+
+        if provider == LLMEnums.HUGGINGFACE.value :
+            return HuggingFaceProvider(
+                api_key = getattr(self.config, "HUGGINGFACE_API_KEY", None),
                 default_input_max_characters = self.config.INPUT_DEFUALT_MAX_CHARACTERS,
                 default_genrated_max_output_tokens = self.config.GENRATED_DEFUALT_MAX_OUTPUT_TOKENS,
                 default_genration_temperature = self.config.GENRATION_DEFUALT_TEMPERATURE

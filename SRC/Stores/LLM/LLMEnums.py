@@ -5,6 +5,7 @@ class LLMEnums(Enum) :
     COHERE = "COHERE"
     GEMINI = "GEMINI"
     OLLAMA = "OLLAMA"
+    HUGGINGFACE = "HUGGINGFACE"
 
 
 class OpenAIEnum(Enum) :
@@ -27,6 +28,11 @@ class GeminiEnum(Enum) :
     ASSISTANT = "assistant"
 
 class OllamaEnum(Enum) :
+    SYSTEM = "system"
+    USER = "user"
+    ASSISTANT = "assistant"
+
+class HuggingFaceEnum(Enum) :
     SYSTEM = "system"
     USER = "user"
     ASSISTANT = "assistant"

@@ -425,12 +425,14 @@ async def process_endpoint (request :Request ,process_request : ProcessRequest) 
         
         # Trigger Embedding
         if inserted_chunk_ids:
-             await nlp_controller.index_into_vector_db(
+             is_inserted, error_msg = await nlp_controller.index_into_vector_db(
                 project=project,
                 chunks=file_chunks_records,
                 chunks_ids=inserted_chunk_ids,
                 do_reset=False
              )
+             if not is_inserted:
+                 logger.error(f"Failed to index file {file_id}: {error_msg}")
 
     return JSONResponse(
            content={
@@ -568,9 +570,10 @@ async def scrape_documentation(request: Request, scrape_request: ScrapeRequest):
     async def _embed_chunks(chunks: list, chunk_ids: list) -> bool:
         if not chunks or not chunk_ids:
             return True
-        return await nlp_controller.index_into_vector_db(
+        is_inserted, _ = await nlp_controller.index_into_vector_db(
             project=project, chunks=chunks, chunks_ids=chunk_ids
         )
+        return is_inserted
 
     async def _embed_chunks_by_ids(chunk_ids: list) -> bool:
         if not chunk_ids:
@@ -595,12 +598,13 @@ async def scrape_documentation(request: Request, scrape_request: ScrapeRequest):
             if not page_chunks:
                 break
             chunks_ids = [chunk.chunk_id for chunk in page_chunks]
-            ok = await nlp_controller.index_into_vector_db(
+            is_inserted, error_msg = await nlp_controller.index_into_vector_db(
                 project=project,
                 chunks=page_chunks,
                 chunks_ids=chunks_ids,
             )
-            if not ok:
+            if not is_inserted:
+                logger.error(f"Failed to index project chunks: {error_msg}")
                 return False, inserted
             inserted += len(chunks_ids)
             page_no += 1

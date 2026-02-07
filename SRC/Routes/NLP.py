@@ -74,11 +74,11 @@ async def index_project (request :Request ,push_request : PushRequest) :
             break
         chunks_ids = [chunk.chunk_id for chunk in page_chunks]
         
-        is_inserted = await nlp_controller.index_into_vector_db(project=project , chunks=page_chunks ,
+        is_inserted, error_msg = await nlp_controller.index_into_vector_db(project=project , chunks=page_chunks ,
                                                             chunks_ids=chunks_ids )
         if not is_inserted :
             return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                                content={"Signal" : ResponseSignal.INSERT_INTO_VECTOR_DB_ERROR.value})
+                                content={"Signal" : ResponseSignal.INSERT_INTO_VECTOR_DB_ERROR.value, "Error": error_msg})
         
         
         p_bar.update(len(page_chunks))

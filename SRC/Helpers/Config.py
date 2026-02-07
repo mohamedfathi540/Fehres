@@ -33,9 +33,10 @@ class settings (BaseSettings):
     OPENAI_API_KEY : Optional[str] = None
     OPENAI_BASE_URL : Optional[str] = None
     COHERE_API_KEY : Optional[str] = None
-    GEMINI_API_KEY : str = None
+    GEMINI_API_KEY : Optional[str] = None
     GEMINI_API_VERSION : str = "v1"
     OLLAMA_BASE_URL : Optional[str] = None
+    HUGGINGFACE_API_KEY : Optional[str] = None
 
     GENRATION_MODEL_ID_LITERAL : List[str] = None
     EMBEDDING_MODEL_ID_LITERAL : List[str] = None
