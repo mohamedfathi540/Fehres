@@ -583,6 +583,29 @@ async def scrape_documentation(request: Request, scrape_request: ScrapeRequest):
                 return False
         return True
 
+    async def _index_project_chunks() -> tuple[bool, int]:
+        inserted = 0
+        page_no = 1
+        while True:
+            page_chunks = await chunk_model.get_project_chunks(
+                project_id=project.project_id,
+                page_no=page_no,
+                page_size=500,
+            )
+            if not page_chunks:
+                break
+            chunks_ids = [chunk.chunk_id for chunk in page_chunks]
+            ok = await nlp_controller.index_into_vector_db(
+                project=project,
+                chunks=page_chunks,
+                chunks_ids=chunks_ids,
+            )
+            if not ok:
+                return False, inserted
+            inserted += len(chunks_ids)
+            page_no += 1
+        return True, inserted
+
     # Ensure we have a discovered URL list
     if not cache.get("discovered_urls"):
         try:
@@ -948,7 +971,19 @@ async def scrape_documentation(request: Request, scrape_request: ScrapeRequest):
             **_cache_fields(cache),
         )
 
-    if embed_during and getattr(settings, "HYBRID_SEARCH_ENABLED", True):
+    auto_indexed_chunks = 0
+    if not embed_during and getattr(settings, "SCRAPING_AUTO_INDEX", True):
+        ok, auto_indexed_chunks = await _index_project_chunks()
+        if not ok:
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={
+                    "signal": ResponseSignal.INSERT_INTO_VECTOR_DB_ERROR.value,
+                    "error": "Auto indexing failed after scraping completed."
+                }
+            )
+
+    if (embed_during or auto_indexed_chunks > 0) and getattr(settings, "HYBRID_SEARCH_ENABLED", True):
         try:
             from Stores.Sparse import BM25Index
             all_chunks = []
@@ -982,6 +1017,7 @@ async def scrape_documentation(request: Request, scrape_request: ScrapeRequest):
             "skipped_pages": skipped_count,
             "total_pages_scraped": len(discovered_urls),
             "embedding_deferred": not embed_during,
+            "auto_indexed_chunks": auto_indexed_chunks,
         }
     )
 

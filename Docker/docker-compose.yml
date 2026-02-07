@@ -10,6 +10,7 @@ services:
       - "8000:8000"
     volumes:
       - fastapi_data:/app/Assets
+      - playwright_browsers:/ms-playwright
     networks:
       - backend
     restart: always
@@ -18,9 +19,6 @@ services:
         condition: service_healthy
     env_file:
       - ./env/.env.app
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
 
   #Frontend Application
   frontend:
@@ -54,7 +52,7 @@ services:
     image: pgvector/pgvector:0.8.0-pg17
     container_name: pgvector
     ports:
-      - "5433:5432"
+      - "5434:5432"
     volumes:
       - "pgvector:/var/lib/postgresql/data"
     env_file:
@@ -82,6 +80,7 @@ services:
     networks:
       - backend
     restart: always
+
 
   #Prometheus Monitoring
   prometheus:
@@ -118,25 +117,6 @@ services:
       - backend
     restart: always
 
-  #Node Exporter for system metrics
-  node_exporter:
-    image: prom/node-exporter:latest
-    container_name: node_exporter
-    ports:
-      - "9100:9100"
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - "--path.procfs=/host/proc"
-      - "--path.sysfs=/host/sys"
-      - "--path.rootfs=/rootfs"
-      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
-    networks:
-      - backend
-    restart: always
-
   #PostgreSQL Exporter
   postgres_exporter:
     image: prometheuscommunity/postgres-exporter:latest
@@ -157,6 +137,7 @@ networks:
 
 volumes:
   fastapi_data:
+  playwright_browsers:
   pgvector:
   qdrant_data:
   prometheus_data:

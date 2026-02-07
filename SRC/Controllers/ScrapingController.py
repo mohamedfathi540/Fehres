@@ -52,18 +52,37 @@ class ScrapingController(basecontroller):
             return True
         return robots_parser.can_fetch(self.settings.SCRAPING_USER_AGENT, url)
     
-    def discover_pages_from_sitemap(self, base_url: str) -> List[str]:
+    def discover_pages_from_sitemap(
+        self,
+        base_url: str,
+        visited_sitemaps: Optional[Set[str]] = None,
+        depth: int = 0,
+        max_depth: int = 5,
+    ) -> List[str]:
         """
         Discover pages from sitemap.xml.
         Returns list of URLs found in sitemap.
         """
         urls = []
-        sitemap_urls = [
-            urljoin(base_url, '/sitemap.xml'),
-            urljoin(base_url, '/sitemap_index.xml'),
-        ]
+        if visited_sitemaps is None:
+            visited_sitemaps = set()
+        if depth > max_depth:
+            logger.warning(f"Max sitemap depth reached for {base_url}")
+            return urls
+
+        # If a sitemap URL was provided, use it directly.
+        if base_url.endswith(".xml"):
+            sitemap_urls = [base_url]
+        else:
+            sitemap_urls = [
+                urljoin(base_url, '/sitemap.xml'),
+                urljoin(base_url, '/sitemap_index.xml'),
+            ]
         
         for sitemap_url in sitemap_urls:
+            if sitemap_url in visited_sitemaps:
+                continue
+            visited_sitemaps.add(sitemap_url)
             try:
                 response = self.session.get(sitemap_url, timeout=self.settings.SCRAPING_TIMEOUT)
                 if response.status_code == 200:
@@ -75,8 +94,15 @@ class ScrapingController(basecontroller):
                         for sitemap_elem in root.findall('.//{http://www.sitemaps.org/schemas/sitemap/0.9}sitemap'):
                             loc_elem = sitemap_elem.find('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')
                             if loc_elem is not None:
-                                nested_sitemap_url = loc_elem.text
-                                nested_urls = self.discover_pages_from_sitemap(nested_sitemap_url)
+                                nested_sitemap_url = (loc_elem.text or "").strip()
+                                if not nested_sitemap_url:
+                                    continue
+                                nested_urls = self.discover_pages_from_sitemap(
+                                    nested_sitemap_url,
+                                    visited_sitemaps=visited_sitemaps,
+                                    depth=depth + 1,
+                                    max_depth=max_depth,
+                                )
                                 urls.extend(nested_urls)
                     
                     # Handle regular sitemap

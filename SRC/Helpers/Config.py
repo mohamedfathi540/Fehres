@@ -35,6 +35,7 @@ class settings (BaseSettings):
     COHERE_API_KEY : Optional[str] = None
     GEMINI_API_KEY : str = None
     GEMINI_API_VERSION : str = "v1"
+    OLLAMA_BASE_URL : Optional[str] = None
 
     GENRATION_MODEL_ID_LITERAL : List[str] = None
     EMBEDDING_MODEL_ID_LITERAL : List[str] = None
@@ -87,11 +88,12 @@ class settings (BaseSettings):
     SCRAPING_CONCURRENCY : int = 1
     SCRAPING_EMBED_BATCH_SIZE : int = 50
     SCRAPING_EMBED_DURING : bool = False
+    SCRAPING_AUTO_INDEX : bool = True
 
     # Default project ID for single-project system
     DEFAULT_PROJECT_ID : int = 1
 
-    @field_validator("SCRAPING_DEBUG", "SCRAPING_USE_BROWSER", "SCRAPING_IGNORE_ROBOTS", mode="before")
+    @field_validator("SCRAPING_DEBUG", "SCRAPING_USE_BROWSER", "SCRAPING_IGNORE_ROBOTS", "SCRAPING_AUTO_INDEX", mode="before")
     @classmethod
     def parse_scraping_bool(cls, v):
         return _env_bool(v) if v is not None else False

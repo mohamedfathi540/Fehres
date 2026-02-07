@@ -13,6 +13,22 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     libxslt-dev \
     libffi-dev \
+    libnspr4 \
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libxkbcommon0 \
+    libxshmfence1 \
+    libgbm1 \
+    libasound2 \
+    libpangocairo-1.0-0 \
+    libcups2 \
+    libdrm2 \
     curl \
     && rm -rf /var/lib/apt/lists/*
    
@@ -20,7 +36,10 @@ COPY SRC/pyproject.toml SRC/uv.lock* ./
 
 ENV UV_HTTP_TIMEOUT=120
 ENV UV_SYSTEM_PYTHON=1
-RUN uv sync --frozen --no-dev
+
+# Install dependencies and Playwright browser binaries to shared volume
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN uv sync --frozen --no-dev && ./.venv/bin/python -m playwright install chromium
 
 COPY SRC/ .
 

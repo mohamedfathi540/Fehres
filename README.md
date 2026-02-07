@@ -7,7 +7,7 @@ A Retrieval-Augmented Generation (RAG) system for document-based question answer
 - **Modern React Frontend**: Accessible SPA built with React 18, TypeScript, and React Aria Components
 - **Learning Assistant**: Dedicated AI assistant for AI/Data Science references corpus
 - **Multi-format Document Support**: PDF, TXT, Markdown, JSON, CSV, DOCX
-- **Multiple LLM Providers**: OpenAI, Google Gemini, Cohere
+- **Multiple LLM Providers**: OpenAI, Google Gemini, Cohere, Ollama (local)
 - **Vector Database Options**: PostgreSQL with pgvector, Qdrant
 - **RESTful API**: FastAPI backend with OpenAPI documentation
 - **Monitoring**: Prometheus metrics and Grafana dashboards
@@ -194,11 +194,41 @@ Key environment variables (see `.env.example` for full list):
 
 | Variable            | Description                                   |
 | ------------------- | --------------------------------------------- |
-| `GENRATION_BACKEND` | LLM provider: `OPENAI`, `GEMINI`, or `COHERE` |
+| `GENRATION_BACKEND` | LLM provider: `OPENAI`, `GEMINI`, `COHERE`, or `OLLAMA` |
 | `EMBEDDING_BACKEND` | Embedding provider                            |
 | `VECTORDB_BACKEND`  | Vector DB: `PGVECTOR` or `QDRANT`             |
 | `POSTGRES_*`        | PostgreSQL connection settings                |
 | `*_API_KEY`         | API keys for LLM providers                    |
+
+## Local Ollama Models
+
+Use Ollama when you want fully local generation and embeddings.
+
+### Recommended models (RTX 3060 12GB)
+
+- **Generation**: `qwen3:8b`
+- **Embeddings**: `qwen3-embedding:8b`
+
+### Setup
+
+1. Install and run Ollama: https://ollama.com
+2. Pull models:
+
+```bash
+ollama pull qwen3:8b
+ollama pull qwen3-embedding:8b
+```
+
+3. Update `.env`:
+
+```bash
+GENRATION_BACKEND="OLLAMA"
+EMBEDDING_BACKEND="OLLAMA"
+OLLAMA_BASE_URL="http://localhost:11434"
+GENRATION_MODEL_ID="qwen3:8b"
+EMBEDDING_MODEL_ID="qwen3-embedding:8b"
+# Set EMBEDDING_SIZE to the model's output dimension (see model card)
+```
 
 ## Tech Stack
 

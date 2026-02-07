@@ -161,13 +161,31 @@ class NLPController (basecontroller) :
         return results
 
 
-    async def answer_rag_question (self , project : Project , query : str ,limit : int = 5) :
+    async def answer_rag_question(
+        self,
+        project: Project,
+        query: str,
+        limit: int = 10,
+        request_chat_history: list = None,
+    ):
+        answer, full_prompt, chat_history = None, None, None
+        request_chat_history = request_chat_history or []
 
-
-        answer, full_prompt ,chat_history = None , None , None
-
-        #step 1 : retrive related document :
-        retrieved_documents = await self.search_vector_db_collection(project = project , text = query , limit = limit)
+        # Step 1: retrieval — use expanded query for follow-ups (e.g. "Can you give me an example?" + last user msg)
+        search_query = query
+        if request_chat_history and len(query.strip()) < 80:
+            last_user = None
+            for m in reversed(request_chat_history):
+                role = (m.get("role") or "").lower()
+                if role == "user":
+                    last_user = (m.get("content") or "").strip()
+                    if len(last_user) > 10:
+                        break
+            if last_user:
+                search_query = f"{last_user} {query}"
+        retrieved_documents = await self.search_vector_db_collection(
+            project=project, text=search_query, limit=limit
+        )
 
         if not retrieved_documents or len(retrieved_documents) == 0 :
             return answer, full_prompt ,chat_history
@@ -176,7 +194,8 @@ class NLPController (basecontroller) :
         system_prompt = self.template_parser.get("rag", "system_prompt")
         doc_lines = []
         for idx, doc in enumerate(retrieved_documents):
-            chunk_text = self.genration_client.process_text(doc.text)
+            # Use full chunk text for RAG; do not truncate (process_text cuts to ~768 chars and can drop the relevant part)
+            chunk_text = doc.text
             if getattr(doc, "metadata", None) and isinstance(doc.metadata, dict):
                 parts = []
                 if doc.metadata.get("source"):
@@ -192,22 +211,53 @@ class NLPController (basecontroller) :
             )
         document_prompt = "\n".join(doc_lines)
 
-        footer_prompt = self.template_parser.get("rag", "footer_prompt",{
-            "query" : query
-        })
+        num_docs = len(retrieved_documents)
+        doc_count_notice = self.template_parser.get(
+            "rag", "doc_count_notice", {"num_docs": num_docs}
+        )
+        query_first = self.template_parser.get("rag", "query_first_prompt", {"query": query})
+        footer_prompt = self.template_parser.get("rag", "footer_prompt", {})
 
+        # Build chat_history for LLM: system + previous conversation (so follow-ups like "Can you give me an example?" have context)
         chat_history = [
             self.genration_client.construct_prompt(
-                prompt = system_prompt,
-                role = self.genration_client.enums.SYSTEM.value
+                prompt=system_prompt,
+                role=self.genration_client.enums.SYSTEM.value,
             )
         ]
+        enums = self.genration_client.enums
+        for msg in request_chat_history:
+            role = (msg.get("role") or "").lower()
+            content = (msg.get("content") or "").strip()
+            if not content:
+                continue
+            if role == "user":
+                chat_history.append(
+                    self.genration_client.construct_prompt(
+                        prompt=content, role=enums.USER.value
+                    )
+                )
+            elif role == "assistant":
+                chat_history.append(
+                    self.genration_client.construct_prompt(
+                        prompt=content, role=enums.ASSISTANT.value
+                    )
+                )
 
-        full_prompt = "\n\n".join([document_prompt , footer_prompt])
+        # Doc count notice, question first, then documents, then "Answer:"
+        full_prompt = "\n\n".join([
+            doc_count_notice,
+            query_first,
+            document_prompt,
+            footer_prompt,
+        ])
 
+        # Use slightly higher temperature for RAG; do not truncate prompt (we send 10 full docs)
         answer = self.genration_client.genrate_text(
-            prompt = full_prompt,
-            chat_history = chat_history
+            prompt=full_prompt,
+            chat_history=chat_history,
+            temperature=0.4,
+            max_prompt_characters=150_000,
         )
 
-        return answer, full_prompt ,chat_history
+        return answer, full_prompt, chat_history

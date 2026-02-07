@@ -30,12 +30,19 @@ export interface ScrapeResponse {
 
 export interface PushRequest {
     do_reset: number;
+    project_name?: string;
+}
+
+export interface ChatMessageForRequest {
+    role: "user" | "assistant";
+    content: string;
 }
 
 export interface SearchRequest {
     text: string;
     limit: number;
     project_name?: string;
+    chat_history?: ChatMessageForRequest[];
 }
 
 // Response Types
@@ -65,6 +72,14 @@ export interface CollectionInfo {
     vectors_count?: number;
     points_count?: number;
     indexed_vectors_count?: number;
+    record_count?: number;
+    table_info?: {
+        schema_name?: string;
+        table_name?: string;
+        table_owner?: string;
+        table_space?: string | null;
+        has_indexes?: boolean;
+    };
 }
 
 export interface IndexInfoResponse {

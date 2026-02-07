@@ -18,9 +18,10 @@ export const pushToIndex = async (
     return response.data;
 };
 
-export const getIndexInfo = async (): Promise<IndexInfoResponse> => {
+export const getIndexInfo = async (projectName?: string): Promise<IndexInfoResponse> => {
     const response = await apiClient.get<IndexInfoResponse>(
-        `/nlp/index/info`
+        `/nlp/index/info`,
+        projectName ? { params: { project_name: projectName } } : undefined
     );
     return response.data;
 };

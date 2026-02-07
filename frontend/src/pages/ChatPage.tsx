@@ -40,7 +40,13 @@ export function ChatPage() {
       getAnswer({
         text,
         limit: contextLimit,
-        project_name: selectedLibrary?.name // Pass selected library name
+        project_name: selectedLibrary?.name,
+        chat_history: chatHistory
+          .slice(-10)
+          .filter((m): m is typeof m & { role: "user" | "assistant" } =>
+            m.role === "user" || m.role === "assistant"
+          )
+          .map((m) => ({ role: m.role, content: m.content })),
       }),
     onSuccess: (data) => {
       const assistantMessage: ChatMessage = {

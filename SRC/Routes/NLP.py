@@ -25,7 +25,10 @@ async def index_project (request :Request ,push_request : PushRequest) :
     # get project
     project_model = await projectModel.create_instance(db_client=request.app.db_client)
     chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
-    project = await project_model.get_project_or_create_one(project_id=default_project_id)
+    if push_request.project_name:
+         project = await project_model.get_project_or_create_one(project_name=push_request.project_name)
+    else:
+         project = await project_model.get_project_or_create_one(project_id=default_project_id)
     
     if not project :
         return JSONResponse(status_code=status.HTTP_404_NOT_FOUND,
@@ -104,14 +107,17 @@ async def index_project (request :Request ,push_request : PushRequest) :
                  "InsertedItemsCount" : inserted_items_count})
 
 @nlp_router.get("/index/info")
-async def get_project_index_info (request :Request) :
+async def get_project_index_info (request :Request, project_name: str | None = None) :
 
     settings = get_settings()
     default_project_id = settings.DEFAULT_PROJECT_ID
 
     project_model = await projectModel.create_instance(db_client=request.app.db_client)
     chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
-    project = await project_model.get_project_or_create_one(project_id=default_project_id)
+    if project_name:
+        project = await project_model.get_project_or_create_one(project_name=project_name)
+    else:
+        project = await project_model.get_project_or_create_one(project_id=default_project_id)
     
     if not project :
         return JSONResponse(status_code=status.HTTP_404_NOT_FOUND,
@@ -197,9 +203,15 @@ async def answer_index(request :Request , search_request : SearchRequest) :
                                     template_parser=request.app.template_parser)
 
 
-    answer, full_prompt ,chat_history =await nlp_controller.answer_rag_question( project=project , 
-                                                                         query=search_request.text , 
-                                                                         limit=search_request.limit)
+    request_history = (
+        [{"role": m.role, "content": m.content} for m in (search_request.chat_history or [])]
+    )
+    answer, full_prompt, chat_history = await nlp_controller.answer_rag_question(
+        project=project,
+        query=search_request.text,
+        limit=search_request.limit,
+        request_chat_history=request_history,
+    )
 
     if not answer :
         return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST,

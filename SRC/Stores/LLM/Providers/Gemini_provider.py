@@ -47,7 +47,8 @@ class GeminiProvider(LLMInterface):
         # Removed truncation as requested
         return text.strip()
 
-    def genrate_text(self, prompt: str, max_output_tokens: int = None, temperature: float = None, chat_history: list = []):
+    def genrate_text(self, prompt: str, max_output_tokens: int = None, temperature: float = None,
+                     chat_history: list = [], max_prompt_characters: int = None):
         if not self.client:
             self.logger.error("Gemini client is not initialized")
             return None
@@ -74,8 +75,10 @@ class GeminiProvider(LLMInterface):
             elif role == GeminiEnum.ASSISTANT.value:
                 gemini_history.append(types.Content(role="model", parts=[types.Part(text=content)]))
 
-        # Append the current prompt
-        gemini_history.append(types.Content(role="user", parts=[types.Part(text=self.process_text(prompt))]))
+        # Append the current prompt (do not truncate when max_prompt_characters set, e.g. for RAG)
+        prompt_text = (prompt[:max_prompt_characters].strip() if max_prompt_characters is not None
+                       else self.process_text(prompt))
+        gemini_history.append(types.Content(role="user", parts=[types.Part(text=prompt_text)]))
 
         generation_config = types.GenerateContentConfig(
             max_output_tokens=max_output_tokens,
