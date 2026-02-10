@@ -34,7 +34,7 @@ RUN apt-get update && apt-get install -y \
    
 COPY SRC/pyproject.toml SRC/uv.lock* ./
 
-ENV UV_HTTP_TIMEOUT=120
+ENV UV_HTTP_TIMEOUT=600
 ENV UV_SYSTEM_PYTHON=1
 
 # Install dependencies and Playwright browser binaries to shared volume
