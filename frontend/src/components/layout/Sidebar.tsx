@@ -8,6 +8,7 @@ import {
   Cog6ToothIcon,
   AcademicCapIcon,
   BookOpenIcon,
+  DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { StatusBadge } from "../ui/StatusBadge";
@@ -19,6 +20,7 @@ const navigation = [
   { name: "Learning Assistant", href: "/learning", icon: AcademicCapIcon },
   { name: "Learning Books", href: "/learning-books", icon: BookOpenIcon },
   { name: "Upload & Process", href: "/upload", icon: ArrowUpTrayIcon },
+  { name: "Prescription", href: "/prescription", icon: DocumentTextIcon },
   { name: "Search", href: "/search", icon: MagnifyingGlassIcon },
   { name: "Index Info", href: "/index", icon: ChartBarIcon },
   { name: "Settings", href: "/settings", icon: Cog6ToothIcon },
@@ -56,9 +58,8 @@ export function Sidebar() {
             key={item.name}
             to={item.href}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
-                isActive ?
-                  "bg-primary-600 text-white"
+              `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-150 ${isActive ?
+                "bg-primary-600 text-white"
                 : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
               }`
             }

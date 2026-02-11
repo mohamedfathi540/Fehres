@@ -24,3 +24,6 @@ class ResponseSignal (Enum) :
     SEARCH_INDEX_NOT_FOUND = "Search index not found"
     ANSWER_INDEX_ERROR = "Answer index error"
     ANSWER_INDEX_DONE = "Answer index done"
+    PRESCRIPTION_ANALYZED = "Prescription analyzed successfully"
+    PRESCRIPTION_OCR_FAILED = "Prescription OCR failed"
+    PRESCRIPTION_NO_MEDICINES_FOUND = "No medicines found in prescription"

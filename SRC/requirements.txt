@@ -30,3 +30,8 @@ tqdm
 nltk
 rank_bm25
 joblib
+
+# Prescription OCR & Search
+llama-parse
+duckduckgo-search
+httpx

@@ -87,6 +87,20 @@ export interface ChatMessage {
     };
 }
 
+// Prescription Types
+
+export interface MedicineInfo {
+    name: string;
+    active_ingredient: string;
+    image_url: string | null;
+}
+
+export interface PrescriptionResponse {
+    signal: string;
+    ocr_text: string;
+    medicines: MedicineInfo[];
+}
+
 // Upload Types
 
 export interface UploadedFile {

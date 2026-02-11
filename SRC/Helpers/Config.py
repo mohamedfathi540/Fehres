@@ -25,6 +25,7 @@ class settings (BaseSettings):
     OPENAI_BASE_URL : str = None
     COHERE_API_KEY : str = None
     GEMINI_API_KEY : str = None
+    LLAMA_CLOUD_API_KEY : str = None
 
     GENRATION_MODEL_ID_LITERAL : List[str] = None
     EMBEDDING_MODEL_ID_LITERAL : List[str] = None

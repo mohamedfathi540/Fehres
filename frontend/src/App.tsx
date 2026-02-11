@@ -8,6 +8,7 @@ import { IndexInfoPage } from "./pages/IndexInfoPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { LearningBooksAdminPage } from "./pages/LearningBooksAdminPage";
 import { LearningAssistantChatPage } from "./pages/LearningAssistantChatPage";
+import { PrescriptionPage } from "./pages/PrescriptionPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,6 +32,7 @@ function App() {
             <Route path="search" element={<SearchPage />} />
             <Route path="index" element={<IndexInfoPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="prescription" element={<PrescriptionPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
