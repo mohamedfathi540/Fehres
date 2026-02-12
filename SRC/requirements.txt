@@ -35,3 +35,4 @@ joblib
 llama-parse
 duckduckgo-search
 httpx
+huggingface_hub

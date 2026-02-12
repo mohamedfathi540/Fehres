@@ -4,6 +4,7 @@ class LLMEnums(Enum) :
     OPENAI = "OPENAI"
     COHERE = "COHERE"
     GEMINI = "GEMINI"
+    HUGGINGFACE = "HUGGINGFACE"
 
 
 class OpenAIEnum(Enum) :

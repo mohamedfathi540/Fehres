@@ -65,6 +65,8 @@ class PrescriptionController(basecontroller):
         dates, dosage instructions, etc.
         Returns a list of medicine name strings.
         """
+        from fastapi.concurrency import run_in_threadpool
+
         if not ocr_text or not ocr_text.strip():
             return []
 
@@ -82,7 +84,9 @@ class PrescriptionController(basecontroller):
         )
 
         try:
-            response = await genration_client.generate_text(
+            # Run synchronous generation in threadpool to avoid blocking event loop
+            response = await run_in_threadpool(
+                genration_client.genrate_text,
                 prompt=prompt,
                 chat_history=[],
                 max_output_tokens=1024,
@@ -109,7 +113,7 @@ class PrescriptionController(basecontroller):
 
         except json.JSONDecodeError as e:
             logger.error("Failed to parse LLM response as JSON: %s", e)
-            logger.error("Raw response: %s", response if 'response' in dir() else "N/A")
+            logger.error("Raw response: %s", response if 'response' in dir() and response else "N/A")
             return []
         except Exception as e:
             logger.error("Error during medicine name extraction: %s", e)
