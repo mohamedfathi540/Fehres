@@ -1,8 +1,0 @@
-now i want the system to do more tasks like :
-- i will path an image of a medicine recipe from a doctor 
-- i want to extract the medicine name and retrive the name of the active ingredient and a pic of the medicine all from a wed search 
-- i want to do this method for every medicine wrotten in the medicine recipe in order 
-## make sure to do this :
-- do an ocr to the image the user path it to system 
-- make sure you retrive the medicine name only ignore the name of the doctor and the adress of his clinic 
-- use llamaparse 
