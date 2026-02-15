@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Depends, UploadFile, status, Request, Query
+from fastapi import FastAPI, APIRouter, Depends, UploadFile, status, Request, Query, BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 import asyncio
@@ -466,316 +466,442 @@ async def scrape_cancel(request: Request):
     return JSONResponse(content={"signal": "cancelled", "message": "Cancel requested"})
 
 
-@data_router.post("/scrape")
-async def scrape_documentation(request: Request, scrape_request: ScrapeRequest):
-    """Scrape library documentation from a base URL."""
-    settings = get_settings()
-    
-    # Use library_name to get/create project. 
-    # If not provided (legacy?), we could fallback to default, but requirements imply unique ID per library.
-    # We will assume library_name is required by the updated schema.
-    library_name = scrape_request.library_name
-    if not library_name:
-         return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"signal": "LIBRARY_NAME_REQUIRED", "message": "Library Name is required"}
-        )
-
-    project_model = await projectModel.create_instance(db_client=request.app.db_client)
+async def run_scraping_background(scrape_request: ScrapeRequest, app: FastAPI):
+    """Background task to run the scraping process."""
     try:
-        project = await project_model.get_project_or_create_one(project_name=library_name)
-    except Exception as e:
-        logger.error(f"Failed to get/create project: {e}")
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"signal": "PROJECT_CREATION_ERROR", "message": str(e)}
-        )
-    
-    # default_project_id = settings.DEFAULT_PROJECT_ID # No longer used for scraping
-    
-    # Log the project ID being used
-    logger.info(f"[SCRAPE] Starting scrape for library '{library_name}' (Project ID: {project.project_id})")
-
-    scraping_controller = ScrapingController()
-    process_controller = processcontroller(project_id=project.project_id)
-    chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
-    asset_model = await AssetModel.create_instance(db_client=request.app.db_client)
-
-    do_reset = scrape_request.Do_reset
-    base_url = scrape_request.base_url.strip()
-
-    # Reset if requested
-    if do_reset == 1:
-        nlp_controller = NLPController(
-            genration_client=request.app.genration_client,
-            embedding_client=request.app.embedding_client,
-            vectordb_client=request.app.vectordb_client,
-            template_parser=request.app.template_parser
-        )
-        collection_name = nlp_controller.create_collection_name(project_id=project.project_id)
-        _ = await request.app.vectordb_client.delete_collection(collection_name=collection_name)
-        _ = await chunk_model.delete_chunk_by_project_id(project_id=project.project_id)
+        settings = get_settings()
+        library_name = scrape_request.library_name
+        
+        logger.info(f"[SCRAPE] Background task started for library '{library_name}'")
+        
+        project_model = await projectModel.create_instance(db_client=app.db_client)
         try:
-            from Stores.Sparse import BM25Index
-            BM25Index.delete_index(project.project_id)
-        except Exception:
-            pass
-        _delete_scrape_cache(base_url)
-
-    cache = _load_scrape_cache(base_url) if do_reset != 1 else None
-
-    asset_record = None
-    if cache and cache.get("project_id") == project.project_id:
-        asset_id = cache.get("asset_id")
-        if asset_id:
-            asset_record = await asset_model.get_asset_by_id(asset_id)
-
-    if not asset_record:
-        asset_resource = Asset(
-            asset_project_id=project.project_id,
-            asset_type=assettypeEnum.URL.value,
-            asset_name=base_url,
-            asset_size=0
-        )
-        asset_record = await asset_model.create_asset(asset=asset_resource)
-        if cache and cache.get("project_id") == project.project_id:
-            cache["asset_id"] = asset_record.asset_id
-
-    if cache is None:
-        cache = {
-            "base_url": base_url,
-            "project_id": project.project_id,
-            "asset_id": asset_record.asset_id,
-            "discovered_urls": [],
-            "processed_urls": [],
-            "skipped_urls": [],
-            "pending_embedding_chunk_ids": [],
-            "status": "in_progress",
-        }
-
-    # Cancel flag shared with POST /scrape-cancel so the loop can be stopped
-    cancel_ref = {"requested": False}
-    request.app.state.scrape_cancel = cancel_ref
-
-    nlp_controller = NLPController(
-        genration_client=request.app.genration_client,
-        embedding_client=request.app.embedding_client,
-        vectordb_client=request.app.vectordb_client,
-        template_parser=request.app.template_parser
-    )
-
-    embed_during = bool(getattr(settings, "SCRAPING_EMBED_DURING", False))
-    embed_batch_size = max(1, int(getattr(settings, "SCRAPING_EMBED_BATCH_SIZE", 50)))
-
-    async def _embed_chunks(chunks: list, chunk_ids: list) -> bool:
-        if not chunks or not chunk_ids:
-            return True
-        is_inserted, _ = await nlp_controller.index_into_vector_db(
-            project=project, chunks=chunks, chunks_ids=chunk_ids
-        )
-        return is_inserted
-
-    async def _embed_chunks_by_ids(chunk_ids: list) -> bool:
-        if not chunk_ids:
-            return True
-        for i in range(0, len(chunk_ids), embed_batch_size):
-            batch_ids = chunk_ids[i:i+embed_batch_size]
-            chunks = await chunk_model.get_chunks_by_ids(chunk_ids=batch_ids)
-            ok = await _embed_chunks(chunks=chunks, chunk_ids=batch_ids)
-            if not ok:
-                return False
-        return True
-
-    async def _index_project_chunks() -> tuple[bool, int]:
-        inserted = 0
-        page_no = 1
-        while True:
-            page_chunks = await chunk_model.get_project_chunks(
-                project_id=project.project_id,
-                page_no=page_no,
-                page_size=500,
-            )
-            if not page_chunks:
-                break
-            chunks_ids = [chunk.chunk_id for chunk in page_chunks]
-            is_inserted, error_msg = await nlp_controller.index_into_vector_db(
-                project=project,
-                chunks=page_chunks,
-                chunks_ids=chunks_ids,
-            )
-            if not is_inserted:
-                logger.error(f"Failed to index project chunks: {error_msg}")
-                return False, inserted
-            inserted += len(chunks_ids)
-            page_no += 1
-        return True, inserted
-
-    # Ensure we have a discovered URL list
-    if not cache.get("discovered_urls"):
-        try:
-            discovered_urls = await run_in_threadpool(
-                scraping_controller.discover_pages,
-                base_url,
-            )
+            project = await project_model.get_project_or_create_one(project_name=library_name)
         except Exception as e:
-            import traceback
-            tb = traceback.format_exc()
-            logger.error(f"Error discovering pages: {e}\n{tb}")
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={
-                    "signal": ResponseSignal.PROCESSING_FAILED.value,
-                    "error": f"Discovery failed: {str(e)}"
-                }
+            logger.error(f"[SCRAPE] Failed to get/create project in background task: {e}")
+            return
+
+        scraping_controller = ScrapingController()
+        process_controller = processcontroller(project_id=project.project_id)
+        chunk_model = await ChunkModel.create_instance(db_client=app.db_client)
+        asset_model = await AssetModel.create_instance(db_client=app.db_client)
+
+        do_reset = scrape_request.Do_reset
+        base_url = scrape_request.base_url.strip()
+
+        # Reset if requested
+        if do_reset == 1:
+            nlp_controller = NLPController(
+                genration_client=app.genration_client,
+                embedding_client=app.embedding_client,
+                vectordb_client=app.vectordb_client,
+                template_parser=app.template_parser
             )
-        cache["discovered_urls"] = discovered_urls
-        _save_scrape_cache(
-            base_url,
-            project.project_id,
-            asset_record.asset_id,
-            **_cache_fields(cache),
-        )
-    else:
-        discovered_urls = cache.get("discovered_urls", [])
+            collection_name = nlp_controller.create_collection_name(project_id=project.project_id)
+            _ = await app.vectordb_client.delete_collection(collection_name=collection_name)
+            _ = await chunk_model.delete_chunk_by_project_id(project_id=project.project_id)
+            try:
+                from Stores.Sparse import BM25Index
+                BM25Index.delete_index(project.project_id)
+            except Exception:
+                pass
+            _delete_scrape_cache(base_url)
 
-    if not discovered_urls:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "signal": ResponseSignal.PROCESSING_FAILED.value,
-                "error": f"No pages were discovered from {base_url}. Check the URL or robots restrictions."
-            }
-        )
+        cache = _load_scrape_cache(base_url) if do_reset != 1 else None
 
-    processed_urls = set(cache.get("processed_urls", []))
-    skipped_urls = set(cache.get("skipped_urls", []))
-    pending_embedding_chunk_ids = list(cache.get("pending_embedding_chunk_ids", []))
+        asset_record = None
+        if cache and cache.get("project_id") == project.project_id:
+            asset_id = cache.get("asset_id")
+            if asset_id:
+                asset_record = await asset_model.get_asset_by_id(asset_id)
 
-    # Resume any pending embedding from a previous run
-    if embed_during and pending_embedding_chunk_ids:
-        ok = await _embed_chunks_by_ids(chunk_ids=pending_embedding_chunk_ids)
-        if not ok:
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={
-                    "signal": ResponseSignal.INSERT_INTO_VECTOR_DB_ERROR.value,
-                    "error": "Embedding failed while resuming pending chunks."
-                }
+        if not asset_record:
+            asset_resource = Asset(
+                asset_project_id=project.project_id,
+                asset_type=assettypeEnum.URL.value,
+                asset_name=base_url,
+                asset_size=0
             )
-        pending_embedding_chunk_ids = []
-        cache["pending_embedding_chunk_ids"] = []
-        _save_scrape_cache(
-            base_url,
-            project.project_id,
-            asset_record.asset_id,
-            **_cache_fields(cache),
-        )
-    elif not embed_during:
-        pending_embedding_chunk_ids = []
-        cache["pending_embedding_chunk_ids"] = []
+            asset_record = await asset_model.create_asset(asset=asset_resource)
+            if cache and cache.get("project_id") == project.project_id:
+                cache["asset_id"] = asset_record.asset_id
 
-    remaining_urls = [
-        url for url in discovered_urls
-        if url not in processed_urls and url not in skipped_urls
-    ]
-
-    if not remaining_urls:
-        return JSONResponse(
-            content={
-                "signal": ResponseSignal.PROCESSING_DONE.value,
-                "Inserted_chunks": 0,
-                "processed_pages": 0,
-                "total_pages_scraped": len(discovered_urls),
-                "resumed_from_cache": True if processed_urls or skipped_urls else False,
+        if cache is None:
+            cache = {
+                "base_url": base_url,
+                "project_id": project.project_id,
+                "asset_id": asset_record.asset_id,
+                "discovered_urls": [],
+                "processed_urls": [],
+                "skipped_urls": [],
+                "pending_embedding_chunk_ids": [],
+                "status": "in_progress",
             }
+
+        # Cancel flag shared with POST /scrape-cancel so the loop can be stopped
+        # We access app.state.scrape_cancel directly
+        cancel_ref = {"requested": False}
+        app.state.scrape_cancel = cancel_ref
+
+        nlp_controller = NLPController(
+            genration_client=app.genration_client,
+            embedding_client=app.embedding_client,
+            vectordb_client=app.vectordb_client,
+            template_parser=app.template_parser
         )
 
-    concurrency = max(1, int(getattr(settings, "SCRAPING_CONCURRENCY", 1)))
-    if getattr(settings, "SCRAPING_USE_BROWSER", False):
-        concurrency = 1
+        embed_during = bool(getattr(settings, "SCRAPING_EMBED_DURING", False))
+        embed_batch_size = max(1, int(getattr(settings, "SCRAPING_EMBED_BATCH_SIZE", 50)))
 
-    rate_limiter = {"lock": threading.Lock(), "last_time": 0.0}
-    rate_limit_seconds = getattr(settings, "SCRAPING_RATE_LIMIT", 0.0)
+        async def _embed_chunks(chunks: list, chunk_ids: list) -> bool:
+            if not chunks or not chunk_ids:
+                return True
+            is_inserted, _ = await nlp_controller.index_into_vector_db(
+                project=project, chunks=chunks, chunks_ids=chunk_ids
+            )
+            return is_inserted
 
-    def _scrape_page_sync(url: str, log_debug_first: bool):
-        if rate_limit_seconds and rate_limit_seconds > 0:
-            with rate_limiter["lock"]:
-                now = time.time()
-                elapsed = now - rate_limiter["last_time"]
-                wait = rate_limit_seconds - elapsed
-                if wait > 0:
-                    time.sleep(wait)
-                rate_limiter["last_time"] = time.time()
-        controller = scraping_controller if concurrency == 1 else ScrapingController()
-        return controller.scrape_page(url, log_debug_first=log_debug_first)
+        async def _embed_chunks_by_ids(chunk_ids: list) -> bool:
+            if not chunk_ids:
+                return True
+            for i in range(0, len(chunk_ids), embed_batch_size):
+                batch_ids = chunk_ids[i:i+embed_batch_size]
+                chunks = await chunk_model.get_chunks_by_ids(chunk_ids=batch_ids)
+                ok = await _embed_chunks(chunks=chunks, chunk_ids=batch_ids)
+                if not ok:
+                    return False
+            return True
 
-    async def _process_page_data(page_data: dict):
-        nonlocal pending_embedding_chunk_ids, cache
-        html_content = page_data["content"]
-        url = page_data["url"]
-        metadata = page_data.get("metadata", {})
+        async def _index_project_chunks() -> tuple[bool, int]:
+            inserted = 0
+            page_no = 1
+            while True:
+                page_chunks = await chunk_model.get_project_chunks(
+                    project_id=project.project_id,
+                    page_no=page_no,
+                    page_size=500,
+                )
+                if not page_chunks:
+                    break
+                chunks_ids = [chunk.chunk_id for chunk in page_chunks]
+                is_inserted, error_msg = await nlp_controller.index_into_vector_db(
+                    project=project,
+                    chunks=page_chunks,
+                    chunks_ids=chunks_ids,
+                )
+                if not is_inserted:
+                    logger.error(f"Failed to index project chunks: {error_msg}")
+                    return False, inserted
+                inserted += len(chunks_ids)
+                page_no += 1
+            return True, inserted
 
-        file_chunks = await run_in_threadpool(
-            process_controller.process_html_content,
-            html_content=html_content,
-            url=url,
-            chunk_size=settings.DOC_CHUNK_SIZE,
-            overlap_size=settings.DOC_OVERLAP_SIZE
-        )
-
-        if not file_chunks:
-            processed_urls.add(url)
-            cache["processed_urls"] = list(processed_urls)
+        # Ensure we have a discovered URL list
+        if not cache.get("discovered_urls"):
+            try:
+                discovered_urls = await run_in_threadpool(
+                    scraping_controller.discover_pages,
+                    base_url,
+                )
+            except Exception as e:
+                import traceback
+                tb = traceback.format_exc()
+                logger.error(f"Error discovering pages: {e}\n{tb}")
+                return # Stop processing
+            
+            cache["discovered_urls"] = discovered_urls
             _save_scrape_cache(
                 base_url,
                 project.project_id,
                 asset_record.asset_id,
                 **_cache_fields(cache),
             )
-            return 0, [], []
+        else:
+            discovered_urls = cache.get("discovered_urls", [])
 
-        for chunk in file_chunks:
-            chunk.metadata.update(metadata)
+        if not discovered_urls:
+            logger.error(f"No pages were discovered from {base_url}.")
+            return
 
-        file_chunks_records = [
-            dataChunk(
-                chunk_text=chunk.page_content,
-                chunk_metadata=chunk.metadata,
-                chunk_order=i+1,
-                chunk_project_id=project.project_id,
-                chunk_asset_id=asset_record.asset_id
+        processed_urls = set(cache.get("processed_urls", []))
+        skipped_urls = set(cache.get("skipped_urls", []))
+        pending_embedding_chunk_ids = list(cache.get("pending_embedding_chunk_ids", []))
+
+        # Resume any pending embedding from a previous run
+        if embed_during and pending_embedding_chunk_ids:
+            ok = await _embed_chunks_by_ids(chunk_ids=pending_embedding_chunk_ids)
+            if not ok:
+                logger.error("Embedding failed while resuming pending chunks.")
+                return
+            pending_embedding_chunk_ids = []
+            cache["pending_embedding_chunk_ids"] = []
+            _save_scrape_cache(
+                base_url,
+                project.project_id,
+                asset_record.asset_id,
+                **_cache_fields(cache),
             )
-            for i, chunk in enumerate(file_chunks)
+        elif not embed_during:
+            pending_embedding_chunk_ids = []
+            cache["pending_embedding_chunk_ids"] = []
+
+        remaining_urls = [
+            url for url in discovered_urls
+            if url not in processed_urls and url not in skipped_urls
         ]
 
-        inserted_ids = await chunk_model.insert_many_chunks_returning_ids(
-            chunks=file_chunks_records
-        )
-        if embed_during and inserted_ids:
-            pending_embedding_chunk_ids.extend(inserted_ids)
-        processed_urls.add(url)
-        cache["processed_urls"] = list(processed_urls)
-        if embed_during:
-            cache["pending_embedding_chunk_ids"] = pending_embedding_chunk_ids
-        _save_scrape_cache(
-            base_url,
-            project.project_id,
-            asset_record.asset_id,
-            **_cache_fields(cache),
-        )
-        return len(file_chunks_records), file_chunks_records, inserted_ids
+        if not remaining_urls:
+            logger.info("No remaining URLs to process.")
+            return
 
-    async def _flush_embed_buffer(embed_buffer_chunks: list, embed_buffer_ids: list):
-        nonlocal pending_embedding_chunk_ids, cache
-        while len(embed_buffer_ids) >= embed_batch_size:
-            batch_chunks = embed_buffer_chunks[:embed_batch_size]
-            batch_ids = embed_buffer_ids[:embed_batch_size]
-            ok = await _embed_chunks(chunks=batch_chunks, chunk_ids=batch_ids)
+        concurrency = max(1, int(getattr(settings, "SCRAPING_CONCURRENCY", 1)))
+        if getattr(settings, "SCRAPING_USE_BROWSER", False):
+            concurrency = 1
+
+        rate_limiter = {"lock": threading.Lock(), "last_time": 0.0}
+        rate_limit_seconds = getattr(settings, "SCRAPING_RATE_LIMIT", 0.0)
+
+        def _scrape_page_sync(url: str, log_debug_first: bool):
+            if rate_limit_seconds and rate_limit_seconds > 0:
+                with rate_limiter["lock"]:
+                    now = time.time()
+                    elapsed = now - rate_limiter["last_time"]
+                    wait = rate_limit_seconds - elapsed
+                    if wait > 0:
+                        time.sleep(wait)
+                    rate_limiter["last_time"] = time.time()
+            controller = scraping_controller if concurrency == 1 else ScrapingController()
+            return controller.scrape_page(url, log_debug_first=log_debug_first)
+
+        async def _process_page_data(page_data: dict):
+            nonlocal pending_embedding_chunk_ids, cache
+            html_content = page_data["content"]
+            url = page_data["url"]
+            metadata = page_data.get("metadata", {})
+
+            file_chunks = await run_in_threadpool(
+                process_controller.process_html_content,
+                html_content=html_content,
+                url=url,
+                chunk_size=settings.DOC_CHUNK_SIZE,
+                overlap_size=settings.DOC_OVERLAP_SIZE
+            )
+
+            if not file_chunks:
+                processed_urls.add(url)
+                cache["processed_urls"] = list(processed_urls)
+                _save_scrape_cache(
+                    base_url,
+                    project.project_id,
+                    asset_record.asset_id,
+                    **_cache_fields(cache),
+                )
+                return 0, [], []
+
+            for chunk in file_chunks:
+                chunk.metadata.update(metadata)
+
+            file_chunks_records = [
+                dataChunk(
+                    chunk_text=chunk.page_content,
+                    chunk_metadata=chunk.metadata,
+                    chunk_order=i+1,
+                    chunk_project_id=project.project_id,
+                    chunk_asset_id=asset_record.asset_id
+                )
+                for i, chunk in enumerate(file_chunks)
+            ]
+
+            inserted_ids = await chunk_model.insert_many_chunks_returning_ids(
+                chunks=file_chunks_records
+            )
+            if embed_during and inserted_ids:
+                pending_embedding_chunk_ids.extend(inserted_ids)
+            processed_urls.add(url)
+            cache["processed_urls"] = list(processed_urls)
+            if embed_during:
+                cache["pending_embedding_chunk_ids"] = pending_embedding_chunk_ids
+            _save_scrape_cache(
+                base_url,
+                project.project_id,
+                asset_record.asset_id,
+                **_cache_fields(cache),
+            )
+            return len(file_chunks_records), file_chunks_records, inserted_ids
+
+        async def _flush_embed_buffer(embed_buffer_chunks: list, embed_buffer_ids: list):
+            nonlocal pending_embedding_chunk_ids, cache
+            while len(embed_buffer_ids) >= embed_batch_size:
+                batch_chunks = embed_buffer_chunks[:embed_batch_size]
+                batch_ids = embed_buffer_ids[:embed_batch_size]
+                ok = await _embed_chunks(chunks=batch_chunks, chunk_ids=batch_ids)
+                if not ok:
+                    return False, embed_buffer_chunks, embed_buffer_ids
+                embed_buffer_chunks = embed_buffer_chunks[embed_batch_size:]
+                embed_buffer_ids = embed_buffer_ids[embed_batch_size:]
+                embedded_set = set(batch_ids)
+                pending_embedding_chunk_ids = [
+                    cid for cid in pending_embedding_chunk_ids if cid not in embedded_set
+                ]
+                cache["pending_embedding_chunk_ids"] = pending_embedding_chunk_ids
+                _save_scrape_cache(
+                    base_url,
+                    project.project_id,
+                    asset_record.asset_id,
+                    **_cache_fields(cache),
+                )
+            return True, embed_buffer_chunks, embed_buffer_ids
+
+        no_records = 0
+        no_pages = 0
+        skipped_count = 0
+        embed_buffer_chunks = []
+        embed_buffer_ids = []
+        robots_parser = scraping_controller._check_robots_txt(base_url)
+
+        async def _handle_scrape_result(result: dict):
+            nonlocal no_records, no_pages, skipped_count, embed_buffer_chunks, embed_buffer_ids
+            url = result.get("url")
+            page_data = result.get("page_data")
+            skip_reason = result.get("skip_reason")
+            index = result.get("index")
+            total = result.get("total")
+            if cancel_ref.get("requested"):
+                return False
+            if not page_data:
+                skipped_urls.add(url)
+                skipped_count += 1
+                cache["skipped_urls"] = list(skipped_urls)
+                _save_scrape_cache(
+                    base_url,
+                    project.project_id,
+                    asset_record.asset_id,
+                    **_cache_fields(cache),
+                )
+                reason = skip_reason or "unknown"
+                if index and total:
+                    logger.warning(f"[SCRAPE] SKIP {index}/{total}: {url} ({reason})")
+                else:
+                    logger.warning(f"[SCRAPE] SKIP: {url} ({reason})")
+                return True
+            try:
+                inserted_count, chunks, ids = await _process_page_data(page_data)
+                no_pages += 1
+                if inserted_count:
+                    no_records += inserted_count
+                    if embed_during:
+                        embed_buffer_chunks.extend(chunks)
+                        embed_buffer_ids.extend(ids)
+                        ok, embed_buffer_chunks, embed_buffer_ids = await _flush_embed_buffer(
+                            embed_buffer_chunks, embed_buffer_ids
+                        )
+                        if not ok:
+                            return False
+                if index and total:
+                    logger.info(f"[SCRAPE] OK {index}/{total}: {url}")
+            except Exception as e:
+                import traceback
+                tb = traceback.format_exc()
+                logger.error(f"[SCRAPE] Error processing page {url}: {e}\n{tb}")
+            return True
+
+        if concurrency == 1:
+            total = len(remaining_urls)
+            try:
+                for idx, url in enumerate(remaining_urls, 1):
+                    if cancel_ref.get("requested"):
+                        break
+                    if not scraping_controller._can_fetch(robots_parser, url):
+                        result = {
+                            "url": url,
+                            "page_data": None,
+                            "skip_reason": "robots.txt disallows URL",
+                            "index": idx,
+                            "total": total,
+                        }
+                    else:
+                        log_debug_first = idx == 1 and getattr(settings, "SCRAPING_DEBUG", False)
+                        page_data, skip_reason = await run_in_threadpool(
+                            _scrape_page_sync, url, log_debug_first
+                        )
+                        result = {
+                            "url": url,
+                            "page_data": page_data,
+                            "skip_reason": skip_reason,
+                            "index": idx,
+                            "total": total,
+                        }
+                    ok = await _handle_scrape_result(result)
+                    if not ok:
+                        logger.error("Embedding failed during scraping.")
+                        return 
+            except Exception as e:
+                import traceback
+                tb = traceback.format_exc()
+                logger.error(f"Error scraping documentation: {e}\n{tb}")
+                return
+        else:
+            total = len(remaining_urls)
+
+            async def _scrape_one(url: str, index: int):
+                if not scraping_controller._can_fetch(robots_parser, url):
+                    return {
+                        "url": url,
+                        "page_data": None,
+                        "skip_reason": "robots.txt disallows URL",
+                        "index": index,
+                        "total": total,
+                    }
+                log_debug_first = index == 1 and getattr(settings, "SCRAPING_DEBUG", False)
+                page_data, skip_reason = await run_in_threadpool(
+                    _scrape_page_sync, url, log_debug_first
+                )
+                return {
+                    "url": url,
+                    "page_data": page_data,
+                    "skip_reason": skip_reason,
+                    "index": index,
+                    "total": total,
+                }
+
+            pending_tasks = set()
+            url_iter = iter(list(enumerate(remaining_urls, 1)))
+            cancelled = False
+
+            for _ in range(min(concurrency, len(remaining_urls))):
+                idx, url = next(url_iter)
+                pending_tasks.add(asyncio.create_task(_scrape_one(url, idx)))
+
+            while pending_tasks:
+                done, pending_tasks = await asyncio.wait(
+                    pending_tasks, return_when=asyncio.FIRST_COMPLETED
+                )
+                for task in done:
+                    result = task.result()
+                    if cancel_ref.get("requested"):
+                        cancelled = True
+                        continue
+                    ok = await _handle_scrape_result(result)
+                    if not ok:
+                         logger.error("Embedding failed during scraping.")
+                         return
+                    if not cancelled:
+                        try:
+                            idx, url = next(url_iter)
+                            pending_tasks.add(asyncio.create_task(_scrape_one(url, idx)))
+                        except StopIteration:
+                            pass
+
+        if cancel_ref.get("requested"):
+            logger.info(f"Scrape cancelled for {base_url} ({no_pages} pages processed)")
+            return
+
+        if embed_during and embed_buffer_ids:
+            ok = await _embed_chunks(chunks=embed_buffer_chunks, chunk_ids=embed_buffer_ids)
             if not ok:
-                return False, embed_buffer_chunks, embed_buffer_ids
-            embed_buffer_chunks = embed_buffer_chunks[embed_batch_size:]
-            embed_buffer_ids = embed_buffer_ids[embed_batch_size:]
-            embedded_set = set(batch_ids)
+                logger.error("Embedding failed for remaining chunks.")
+                return 
+            embedded_set = set(embed_buffer_ids)
             pending_embedding_chunk_ids = [
                 cid for cid in pending_embedding_chunk_ids if cid not in embedded_set
             ]
@@ -786,242 +912,106 @@ async def scrape_documentation(request: Request, scrape_request: ScrapeRequest):
                 asset_record.asset_id,
                 **_cache_fields(cache),
             )
-        return True, embed_buffer_chunks, embed_buffer_ids
 
-    no_records = 0
-    no_pages = 0
-    skipped_count = 0
-    embed_buffer_chunks = []
-    embed_buffer_ids = []
-    robots_parser = scraping_controller._check_robots_txt(base_url)
+        auto_indexed_chunks = 0
+        if not embed_during and getattr(settings, "SCRAPING_AUTO_INDEX", True):
+            ok, auto_indexed_chunks = await _index_project_chunks()
+            if not ok:
+                logger.error("Auto indexing failed after scraping completed.")
+                return
 
-    async def _handle_scrape_result(result: dict):
-        nonlocal no_records, no_pages, skipped_count, embed_buffer_chunks, embed_buffer_ids
-        url = result.get("url")
-        page_data = result.get("page_data")
-        skip_reason = result.get("skip_reason")
-        index = result.get("index")
-        total = result.get("total")
-        if cancel_ref.get("requested"):
-            return False
-        if not page_data:
-            skipped_urls.add(url)
-            skipped_count += 1
-            cache["skipped_urls"] = list(skipped_urls)
-            _save_scrape_cache(
-                base_url,
-                project.project_id,
-                asset_record.asset_id,
-                **_cache_fields(cache),
-            )
-            reason = skip_reason or "unknown"
-            if index and total:
-                logger.warning(f"[SCRAPE] SKIP {index}/{total}: {url} ({reason})")
-            else:
-                logger.warning(f"[SCRAPE] SKIP: {url} ({reason})")
-            return True
-        try:
-            inserted_count, chunks, ids = await _process_page_data(page_data)
-            no_pages += 1
-            if inserted_count:
-                no_records += inserted_count
-                if embed_during:
-                    embed_buffer_chunks.extend(chunks)
-                    embed_buffer_ids.extend(ids)
-                    ok, embed_buffer_chunks, embed_buffer_ids = await _flush_embed_buffer(
-                        embed_buffer_chunks, embed_buffer_ids
+        if (embed_during or auto_indexed_chunks > 0) and getattr(settings, "HYBRID_SEARCH_ENABLED", True):
+            try:
+                logger.info(f"[SCRAPE] Starting BM25 indexing for project {project.project_id}...")
+                from Stores.Sparse import BM25Index
+                all_chunks = []
+                page_no = 1
+                while True:
+                    page_chunks = await chunk_model.get_project_chunks(
+                        project_id=project.project_id, page_no=page_no, page_size=500
                     )
-                    if not ok:
-                        return False
-            if index and total:
-                logger.info(f"[SCRAPE] OK {index}/{total}: {url}")
-        except Exception as e:
-            logger.error(f"Error processing page {url}: {e}")
-        return True
+                    if not page_chunks:
+                        break
+                    all_chunks.extend(page_chunks)
+                    page_no += 1
+                
+                logger.info(f"[SCRAPE] Fetched {len(all_chunks)} chunks for BM25 indexing.")
+                if all_chunks:
+                    BM25Index.build_index(project.project_id, all_chunks)
+                    logger.info(f"[SCRAPE] BM25 indexing completed for project {project.project_id}.")
+            except Exception as e:
+                import traceback
+                tb = traceback.format_exc()
+                logger.error(f"[SCRAPE] BM25 index build failed: {e}\n{tb}")
 
-    if concurrency == 1:
-        total = len(remaining_urls)
-        try:
-            for idx, url in enumerate(remaining_urls, 1):
-                if cancel_ref.get("requested"):
-                    break
-                if not scraping_controller._can_fetch(robots_parser, url):
-                    result = {
-                        "url": url,
-                        "page_data": None,
-                        "skip_reason": "robots.txt disallows URL",
-                        "index": idx,
-                        "total": total,
-                    }
-                else:
-                    log_debug_first = idx == 1 and getattr(settings, "SCRAPING_DEBUG", False)
-                    page_data, skip_reason = await run_in_threadpool(
-                        _scrape_page_sync, url, log_debug_first
-                    )
-                    result = {
-                        "url": url,
-                        "page_data": page_data,
-                        "skip_reason": skip_reason,
-                        "index": idx,
-                        "total": total,
-                    }
-                ok = await _handle_scrape_result(result)
-                if not ok:
-                    return JSONResponse(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        content={
-                            "signal": ResponseSignal.INSERT_INTO_VECTOR_DB_ERROR.value,
-                            "error": "Embedding failed during scraping."
-                        }
-                    )
-        except Exception as e:
-            import traceback
-            tb = traceback.format_exc()
-            logger.error(f"Error scraping documentation: {e}\n{tb}")
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={
-                    "signal": ResponseSignal.PROCESSING_FAILED.value,
-                    "error": f"Scraping failed: {str(e)}"
-                }
-            )
-    else:
-        total = len(remaining_urls)
-
-        async def _scrape_one(url: str, index: int):
-            if not scraping_controller._can_fetch(robots_parser, url):
-                return {
-                    "url": url,
-                    "page_data": None,
-                    "skip_reason": "robots.txt disallows URL",
-                    "index": index,
-                    "total": total,
-                }
-            log_debug_first = index == 1 and getattr(settings, "SCRAPING_DEBUG", False)
-            page_data, skip_reason = await run_in_threadpool(
-                _scrape_page_sync, url, log_debug_first
-            )
-            return {
-                "url": url,
-                "page_data": page_data,
-                "skip_reason": skip_reason,
-                "index": index,
-                "total": total,
-            }
-
-        pending_tasks = set()
-        url_iter = iter(list(enumerate(remaining_urls, 1)))
-        cancelled = False
-
-        for _ in range(min(concurrency, len(remaining_urls))):
-            idx, url = next(url_iter)
-            pending_tasks.add(asyncio.create_task(_scrape_one(url, idx)))
-
-        while pending_tasks:
-            done, pending_tasks = await asyncio.wait(
-                pending_tasks, return_when=asyncio.FIRST_COMPLETED
-            )
-            for task in done:
-                result = task.result()
-                if cancel_ref.get("requested"):
-                    cancelled = True
-                    continue
-                ok = await _handle_scrape_result(result)
-                if not ok:
-                    return JSONResponse(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        content={
-                            "signal": ResponseSignal.INSERT_INTO_VECTOR_DB_ERROR.value,
-                            "error": "Embedding failed during scraping."
-                        }
-                    )
-                if not cancelled:
-                    try:
-                        idx, url = next(url_iter)
-                        pending_tasks.add(asyncio.create_task(_scrape_one(url, idx)))
-                    except StopIteration:
-                        pass
-
-    if cancel_ref.get("requested"):
-        logger.info(f"Scrape cancelled for {base_url} ({no_pages} pages processed)")
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={
-                "signal": "cancelled",
-                "message": "Scrape cancelled",
-                "partial_pages_processed": no_pages,
-            },
-        )
-
-    if embed_during and embed_buffer_ids:
-        ok = await _embed_chunks(chunks=embed_buffer_chunks, chunk_ids=embed_buffer_ids)
-        if not ok:
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={
-                    "signal": ResponseSignal.INSERT_INTO_VECTOR_DB_ERROR.value,
-                    "error": "Embedding failed for remaining chunks."
-                }
-            )
-        embedded_set = set(embed_buffer_ids)
-        pending_embedding_chunk_ids = [
-            cid for cid in pending_embedding_chunk_ids if cid not in embedded_set
-        ]
-        cache["pending_embedding_chunk_ids"] = pending_embedding_chunk_ids
+        cache["status"] = "completed"
         _save_scrape_cache(
             base_url,
             project.project_id,
             asset_record.asset_id,
             **_cache_fields(cache),
         )
+        logger.info(f"[SCRAPE] Completed for {base_url}. Pages: {no_pages}, Chunks: {no_records}")
 
-    auto_indexed_chunks = 0
-    if not embed_during and getattr(settings, "SCRAPING_AUTO_INDEX", True):
-        ok, auto_indexed_chunks = await _index_project_chunks()
-        if not ok:
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={
-                    "signal": ResponseSignal.INSERT_INTO_VECTOR_DB_ERROR.value,
-                    "error": "Auto indexing failed after scraping completed."
-                }
-            )
+    except Exception as e:
+         logger.error(f"[SCRAPE] Fatal error in background task: {e}")
 
-    if (embed_during or auto_indexed_chunks > 0) and getattr(settings, "HYBRID_SEARCH_ENABLED", True):
-        try:
-            from Stores.Sparse import BM25Index
-            all_chunks = []
-            page_no = 1
-            while True:
-                page_chunks = await chunk_model.get_project_chunks(
-                    project_id=project.project_id, page_no=page_no, page_size=500
-                )
-                if not page_chunks:
-                    break
-                all_chunks.extend(page_chunks)
-                page_no += 1
-            if all_chunks:
-                BM25Index.build_index(project.project_id, all_chunks)
-        except Exception as e:
-            logger.warning("BM25 index build failed: %s", e)
 
-    cache["status"] = "completed"
-    _save_scrape_cache(
-        base_url,
-        project.project_id,
-        asset_record.asset_id,
-        **_cache_fields(cache),
+@data_router.post("/scrape")
+async def scrape_documentation(
+    request: Request,
+    scrape_request: ScrapeRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Scrape library documentation from a base URL (Runs in background).
+    Returns immediately with ACCEPTED status.
+    """
+    library_name = scrape_request.library_name
+    if not library_name:
+         return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"signal": "LIBRARY_NAME_REQUIRED", "message": "Library Name is required"}
+        )
+
+    base_url = scrape_request.base_url.strip()
+    
+    # 1. Quick URL validation
+    scraping_controller = ScrapingController()
+    if not scraping_controller.verify_url_accessible(base_url):
+         return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "signal": "URL_NOT_ACCESSIBLE",
+                "message": f"URL {base_url} is not accessible (or returned non-200). Please check."
+            }
+        )
+
+    # 2. Get/Create Project to ensure we have a valid ID
+    project_model = await projectModel.create_instance(db_client=request.app.db_client)
+    try:
+        project = await project_model.get_project_or_create_one(project_name=library_name)
+    except Exception as e:
+        logger.error(f"Failed to get/create project: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"signal": "PROJECT_CREATION_ERROR", "message": str(e)}
+        )
+    
+    # 3. Queue request
+    # Pass 'request.app' to the background task to access shared clients
+    background_tasks.add_task(
+        run_scraping_background,
+        scrape_request,
+        request.app
     )
-
+    
     return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
         content={
-            "signal": ResponseSignal.PROCESSING_DONE.value,
-            "Inserted_chunks": no_records,
-            "processed_pages": no_pages,
-            "skipped_pages": skipped_count,
-            "total_pages_scraped": len(discovered_urls),
-            "embedding_deferred": not embed_during,
-            "auto_indexed_chunks": auto_indexed_chunks,
+            "signal": "SCRAPING_STARTED",
+            "message": f"Scraping started in background for {library_name}",
+            "project_id": project.project_id
         }
     )
 
