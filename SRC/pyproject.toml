@@ -40,6 +40,8 @@ dependencies = [
     "boto3>=1.42.14",
     "playwright>=1.40.0",
     "huggingface-hub>=1.2.3",
+    "langchain-huggingface",
+    "sentence-transformers",
 ]
 [project.optional-dependencies]
 # Kept for backwards compatibility; playwright is now a main dependency

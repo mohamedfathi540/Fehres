@@ -24,6 +24,8 @@ fastapi-health==0.4.0
 
 # LLM Providers
 google-genai
+sentence-transformers
+langchain-huggingface
 
 # Document Processing
 docx2txt
