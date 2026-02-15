@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y \
     libdrm2 \
     curl \
     && rm -rf /var/lib/apt/lists/*
-   
+
 COPY SRC/pyproject.toml SRC/uv.lock* ./
 
 ENV UV_HTTP_TIMEOUT=600
@@ -39,16 +39,16 @@ ENV UV_SYSTEM_PYTHON=1
 
 # Install dependencies and Playwright browser binaries to shared volume
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN uv sync --frozen --no-dev && ./.venv/bin/python -m playwright install chromium
+RUN uv sync --no-dev && ./.venv/bin/python -m playwright install chromium
 
 COPY SRC/ .
 
 #create directory for alembic
 RUN mkdir -p Models/DB_Schemes/minirag
- 
+
 COPY Docker/minirag/alembic.ini /app/Models/DB_Schemes/minirag/alembic.ini
 
-COPY Docker/minirag/enterypoint.sh /enterypoint.sh
-RUN chmod +x /enterypoint.sh
+COPY Docker/minirag/entrypoint.sh /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 
-ENTRYPOINT ["/enterypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]
