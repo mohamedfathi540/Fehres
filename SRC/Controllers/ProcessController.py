@@ -7,6 +7,7 @@ from langchain_community.document_loaders import TextLoader
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_community.document_loaders import CSVLoader
 from langchain_community.document_loaders import Docx2txtLoader
+from langchain_community.document_loaders import AsyncHtmlLoader
 from Models import processingEnum
 from typing import List
 from dataclasses import dataclass
@@ -126,6 +127,35 @@ class processcontroller (basecontroller) :
             splitter_tag="\n",
         )
 
+        return chunks
+    
+    def process_html_content(self, html_content: str, url: str, chunk_size: int = None, overlap_size: int = None) -> List[Document]:
+        """
+        Process HTML content from scraping into chunks.
+        """
+        settings = get_settings()
+        if chunk_size is None:
+            chunk_size = settings.DOC_CHUNK_SIZE
+        if overlap_size is None:
+            overlap_size = settings.DOC_OVERLAP_SIZE
+        
+        # Create a simple document from HTML content
+        # The content should already be extracted by ContentFilter
+        metadata = {
+            "source": url,
+            "url": url,
+            "file_name": url.split('/')[-1] or "index",
+            "type": "html"
+        }
+        
+        chunks = self.process_simpler_splitter(
+            texts=[html_content],
+            metadatas=[metadata],
+            chunk_size=chunk_size,
+            overlap_size=overlap_size,
+            splitter_tag="\n",
+        )
+        
         return chunks
 
     def _split_segment_into_chunks(self, text: str, chunk_size: int, overlap_size: int, splitter_tag: str) -> List[str]:

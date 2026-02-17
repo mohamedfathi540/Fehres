@@ -37,7 +37,7 @@ pnpm install
 pnpm run dev
 ```
 
-The development server will start at `http://localhost:5777`.
+The development server will start at `http://localhost:5173`.
 
 ### Environment Variables
 

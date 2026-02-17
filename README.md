@@ -7,7 +7,7 @@ A Retrieval-Augmented Generation (RAG) system for document-based question answer
 - **Modern React Frontend**: Accessible SPA built with React 18, TypeScript, and React Aria Components
 - **Learning Assistant**: Dedicated AI assistant for AI/Data Science references corpus
 - **Multi-format Document Support**: PDF, TXT, Markdown, JSON, CSV, DOCX
-- **Multiple LLM Providers**: OpenAI, Google Gemini, Cohere
+- **Multiple LLM Providers**: OpenAI, Google Gemini, Cohere, HuggingFace, Ollama (local)
 - **Vector Database Options**: PostgreSQL with pgvector, Qdrant
 - **RESTful API**: FastAPI backend with OpenAPI documentation
 - **Monitoring**: Prometheus metrics and Grafana dashboards
@@ -39,7 +39,7 @@ flowchart TB
     end
 
     subgraph External["External Services"]
-        LLM[LLM Providers<br/>OpenAI/Gemini/Cohere]
+        LLM[LLM Providers<br/>OpenAI/Gemini/Cohere/HuggingFace]
         Embeddings[Embedding Service]
     end
 
@@ -70,62 +70,40 @@ flowchart TB
 - [uv](https://github.com/astral-sh/uv) (recommended) or pip
 - Docker and Docker Compose (for containerized deployment)
 
-### Local Development
+### One-Command Startup (Recommended)
 
-#### 1. Clone the repository
+The easiest way to run the full stack (Database, Backend, Frontend) is using the helper script:
 
 ```bash
+# 1. Clone
 git clone <repository-url>
 cd fehres
-```
 
-#### 2. Set up Backend
-
-```bash
+# 2. Configure
 cd SRC
 cp .env.example .env
-# Edit .env with your API keys and database credentials
+# Edit .env with your API keys!
+
+# 3. Run
+cd ..
+./dev.sh
 ```
 
-Install dependencies:
+This script will:
+1. Start PostgreSQL & Qdrant in Docker
+2. Run database migrations
+3. Start the FastAPI backend (port 8000)
+4. Start the React frontend (port 5173)
 
-```bash
-uv sync
-# or: pip install -r requirements.txt
-```
+### Manual Setup (Alternative)
 
-Run database migrations:
+If you prefer to run services individually:
 
-```bash
-uv run python -m alembic upgrade head
-```
-
-Start the server:
-
-```bash
-uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-#### 3. Set up Frontend (Optional - for React UI)
-
-```bash
-cd frontend
-pnpm install
-pnpm run dev
-```
-
-The React frontend will be available at `http://localhost:5173`.
-
-#### 4. Access the Services
-
-- **React Frontend**: http://localhost:5173
-- **API Documentation**: http://localhost:8000/docs
-
-### Docker Deployment
+#### 1. Databases
 
 ```bash
 cd Docker
-docker compose up -d
+docker compose -f docker-compose.dev.yml up -d
 ```
 
 Services will be available at:
@@ -136,6 +114,32 @@ Services will be available at:
 - **Prometheus**: http://localhost:9090
 
 See [Docker/README.md](Docker/README.md) for detailed Docker configuration.
+
+#### 2. Backend
+
+```bash
+cd SRC
+# Install dependencies
+uv sync
+# Or: pip install -r requirements.txt
+
+# Install Playwright browsers (for scraping)
+uv run playwright install chromium
+
+# Run migrations
+uv run python -m alembic upgrade head
+
+# Start API
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### 3. Frontend
+
+```bash
+cd frontend
+pnpm install
+pnpm run dev
+```
 
 ## Usage
 
@@ -190,13 +194,45 @@ fehres/
 
 Key environment variables (see `.env.example` for full list):
 
-| Variable            | Description                                   |
-| ------------------- | --------------------------------------------- |
-| `GENRATION_BACKEND` | LLM provider: `OPENAI`, `GEMINI`, or `COHERE` |
-| `EMBEDDING_BACKEND` | Embedding provider                            |
-| `VECTORDB_BACKEND`  | Vector DB: `PGVECTOR` or `QDRANT`             |
-| `POSTGRES_*`        | PostgreSQL connection settings                |
-| `*_API_KEY`         | API keys for LLM providers                    |
+| Variable | Description |
+| --- | --- |
+| `GENRATION_BACKEND` | LLM provider: `OPENAI`, `GEMINI`, `COHERE`, `HUGGINGFACE`, or `OLLAMA` |
+| `EMBEDDING_BACKEND` | Embedding provider |
+| `VECTORDB_BACKEND` | Vector DB: `PGVECTOR` or `QDRANT` |
+| `POSTGRES_*` | PostgreSQL connection settings |
+| `*_API_KEY` | API keys for LLM providers |
+| `SCRAPING_USE_BROWSER` | Set to `1` to use Playwright (slower, better quality), `0` for requests |
+| `SCRAPING_CONCURRENCY` | Number of concurrent pages to scrape (if browser disabled) |
+
+## Local Ollama Models
+
+Use Ollama when you want fully local generation and embeddings.
+
+### Recommended models (RTX 3060 12GB)
+
+- **Generation**: `qwen3:8b`
+- **Embeddings**: `qwen3-embedding:8b`
+
+### Setup
+
+1. Install and run Ollama: https://ollama.com
+2. Pull models:
+
+```bash
+ollama pull qwen3:8b
+ollama pull qwen3-embedding:8b
+```
+
+3. Update `.env`:
+
+```bash
+GENRATION_BACKEND="OLLAMA"
+EMBEDDING_BACKEND="OLLAMA"
+OLLAMA_BASE_URL="http://localhost:11434"
+GENRATION_MODEL_ID="qwen3:8b"
+EMBEDDING_MODEL_ID="qwen3-embedding:8b"
+# Set EMBEDDING_SIZE to the model's output dimension (see model card)
+```
 
 ## Tech Stack
 
@@ -251,6 +287,54 @@ streamlit run app.py
 ```
 
 See [streamlit_app/README.md](streamlit_app/README.md) for more details.
+
+### Testing the documentation scraper
+
+Use these steps to verify scraping and to see why a site might return 0 pages.
+
+**1. One-URL debug (no full scrape)**  
+With the backend running (e.g. `docker compose up` or local FastAPI on port 8000), call the debug endpoint with the URL you want to scrape. It returns raw HTML length, extracted text length, and a short snippet so you can see if the problem is “server returns little HTML” or “extraction strips everything”.
+
+```bash
+# Replace the URL if needed; backend must be on port 8000 (or use your API base URL)
+curl "http://localhost:8000/api/v1/data/scrape-debug?url=https://docs.flet.dev/"
+```
+
+Example response:
+
+```json
+{
+  "url": "https://docs.flet.dev/",
+  "status_code": 200,
+  "content_type": "text/html; charset=utf-8",
+  "html_len": 125000,
+  "extracted_len": 8400,
+  "extracted_snippet": "Introduction Flet is a framework...",
+  "error": null
+}
+```
+
+- Scraping uses **Playwright** (headless Chromium) by default (`SCRAPING_USE_BROWSER=1`). After `uv sync`, run once: `uv run playwright install chromium`.
+- If `html_len` is large but `extracted_len` is small, check logs or set `SCRAPING_DEBUG=1` to inspect the first URL.
+
+**2. Full scrape from the UI**
+
+1. Open the app (e.g. http://localhost:5173 or http://localhost).
+2. Go to **Library docs** (or the page where you enter a documentation URL).
+3. Enter the base URL (e.g. `https://docs.flet.dev/`) and start the scrape.
+4. In the backend logs (e.g. `docker compose logs -f fastapi`), you’ll see:
+   - Per-page skip reasons: `non-200`, `non-html`, `insufficient_content extracted_len=...`, or `exception ...`
+   - If `SCRAPING_DEBUG=1` in your env, the first URL also logs `html_len`, `extracted_len`, and a snippet.
+
+**3. Optional: enable debug for the first URL**
+
+In your backend env (e.g. `Docker/env/.env.app` or `.env`), set:
+
+```bash
+SCRAPING_DEBUG=1
+```
+
+Restart the backend and run a scrape; the first URL’s debug line will appear in the logs.
 
 See [TESTING.md](TESTING.md) for comprehensive testing documentation.
 

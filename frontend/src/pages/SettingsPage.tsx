@@ -6,8 +6,6 @@ export function SettingsPage() {
   const {
     apiUrl,
     setApiUrl,
-    projectId,
-    setProjectId,
     theme,
     toggleTheme,
     clearHistory,
@@ -44,23 +42,6 @@ export function SettingsPage() {
             </p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-2">
-              Project ID
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={projectId}
-              onChange={(e) => setProjectId(parseInt(e.target.value) || 1)}
-              className="w-full px-4 py-2 bg-bg-tertiary border border-border rounded-md text-text-primary focus:outline-none focus:border-primary-600 transition-all"
-            />
-            <p className="text-xs text-text-muted mt-1">
-              The project to work with. Use <strong>10</strong> for the learning
-              books corpus (AI/Data Science references; book chunk size and
-              hybrid search).
-            </p>
-          </div>
         </div>
       </Card>
 

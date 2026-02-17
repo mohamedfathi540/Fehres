@@ -1,7 +1,6 @@
 from .Base_DataModel import BaseDataModel
 from .DB_Schemes.minirag.Schemes import Asset
 from .enums.DataBaseEnum import databaseEnum
-from bson import ObjectId
 from sqlalchemy.future import select
 from sqlalchemy import func, delete
 

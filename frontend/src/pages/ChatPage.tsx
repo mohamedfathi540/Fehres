@@ -1,22 +1,53 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { PaperAirplaneIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useSettingsStore } from "../stores/settingsStore";
 import { getAnswer } from "../api/nlp";
+import { getLibraries } from "../api/data";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { generateId, formatDate } from "../utils/helpers";
 import type { ChatMessage } from "../api/types";
 
 export function ChatPage() {
-  const { projectId, chatHistory, addMessage, clearHistory } =
-    useSettingsStore();
+  const { chatHistory, addMessage, clearHistory } = useSettingsStore();
   const [question, setQuestion] = useState("");
-  const [contextLimit, setContextLimit] = useState(5);
+  const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(null);
+  const contextLimit = 10;
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Fetch Libraries
+  const { data: librariesData } = useQuery({
+    queryKey: ["libraries"],
+    queryFn: getLibraries,
+  });
+
+  const libraries = librariesData?.libraries || [];
+
+  // Auto-select first library if none selected and libraries exist
+  useEffect(() => {
+    if (!selectedLibraryId && libraries.length > 0) {
+      setSelectedLibraryId(libraries[0].id);
+    }
+  }, [libraries, selectedLibraryId]);
+
+  const selectedLibrary = libraries.find(l => l.id === selectedLibraryId);
 
   const answerMutation = useMutation({
     mutationFn: (text: string) =>
-      getAnswer(projectId, { text, limit: contextLimit }),
+      getAnswer({
+        text,
+        limit: contextLimit,
+        project_name: selectedLibrary?.name,
+        chat_history: chatHistory
+          .slice(-10)
+          .filter((m): m is typeof m & { role: "user" | "assistant" } =>
+            m.role === "user" || m.role === "assistant"
+          )
+          .map((m) => ({ role: m.role, content: m.content })),
+      }),
     onSuccess: (data) => {
       const assistantMessage: ChatMessage = {
         id: generateId(),
@@ -43,7 +74,7 @@ export function ChatPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!question.trim() || answerMutation.isPending) return;
+    if (!question.trim() || answerMutation.isPending || !selectedLibrary) return;
 
     const userMessage: ChatMessage = {
       id: generateId(),
@@ -56,22 +87,57 @@ export function ChatPage() {
     setQuestion("");
   };
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatHistory, answerMutation.isPending]);
+
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
-      {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-text-primary tracking-tight">
-          Chat
-        </h2>
-        <p className="text-sm text-text-secondary mt-1">
-          Ask questions about your indexed documents
-        </p>
+    <div className="flex flex-col h-[calc(100vh-4rem)] min-h-0">
+      {/* Header with Library Selector */}
+      <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold text-text-primary tracking-tight">
+            Chat
+          </h2>
+          <p className="text-sm text-text-secondary mt-1">
+            Ask questions about your indexed documents
+          </p>
+        </div>
+
+        {/* Library Selector */}
+        <div className="relative">
+          <label className="block text-xs font-medium text-text-secondary mb-1">
+            Select Library
+          </label>
+          <div className="relative w-64">
+            <select
+              value={selectedLibraryId || ""}
+              onChange={(e) => setSelectedLibraryId(Number(e.target.value))}
+              className="w-full appearance-none bg-bg-primary border border-border text-text-primary px-4 py-2 pr-8 rounded-lg focus:outline-none focus:border-primary-500 cursor-pointer"
+              disabled={libraries.length === 0}
+            >
+              {libraries.length === 0 ? (
+                <option value="">No libraries available</option>
+              ) : (
+                libraries.map((lib) => (
+                  <option key={lib.id} value={lib.id}>
+                    {lib.name}
+                  </option>
+                ))
+              )}
+            </select>
+            <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
+          </div>
+        </div>
       </div>
 
       {/* Chat Container */}
-      <Card className="flex-1 flex flex-col overflow-hidden">
+      <Card
+        className="flex flex-col flex-1 overflow-hidden min-h-0"
+        contentClassName="flex flex-col flex-1 min-h-0 p-0"
+      >
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
           {chatHistory.length === 0 ?
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
@@ -79,25 +145,33 @@ export function ChatPage() {
                   Welcome to Fehres Chat
                 </p>
                 <p className="text-sm text-text-secondary">
-                  Ask questions about your documents to get AI-generated answers
+                  {selectedLibrary
+                    ? `Ask questions about ${selectedLibrary.name}`
+                    : "Select a library to start chatting"}
                 </p>
               </div>
             </div>
-          : chatHistory.map((message) => (
+            : chatHistory.map((message) => (
               <div
                 key={message.id}
-                className={`flex ${
-                  message.role === "user" ? "justify-end" : "justify-start"
-                }`}
+                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"
+                  }`}
               >
                 <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                    message.role === "user" ?
-                      "bg-primary-600 text-white rounded-br-none"
+                  className={`max-w-[80%] rounded-2xl px-4 py-3 ${message.role === "user" ?
+                    "bg-primary-600 text-white rounded-br-none"
                     : "bg-bg-tertiary text-text-primary border border-border rounded-bl-none"
-                  }`}
+                    }`}
                 >
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  {message.role === "assistant" ? (
+                    <div className="chat-markdown text-sm">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                  )}
                   <span className="text-xs opacity-70 mt-2 block">
                     {formatDate(message.timestamp)}
                   </span>
@@ -116,31 +190,18 @@ export function ChatPage() {
               </div>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Input Area */}
         <div className="border-t border-border p-4 bg-bg-secondary">
-          {/* Context Slider */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm text-text-secondary">
-                Context Chunks: {contextLimit}
-              </label>
-              {chatHistory.length > 0 && (
-                <Button variant="ghost" size="sm" onPress={clearHistory}>
-                  Clear History
-                </Button>
-              )}
+          {chatHistory.length > 0 && (
+            <div className="mb-3 flex justify-end">
+              <Button variant="ghost" size="sm" onPress={clearHistory}>
+                Clear History
+              </Button>
             </div>
-            <input
-              type="range"
-              min={1}
-              max={10}
-              value={contextLimit}
-              onChange={(e) => setContextLimit(parseInt(e.target.value))}
-              className="w-full"
-            />
-          </div>
+          )}
 
           {/* Input Form */}
           <form onSubmit={handleSubmit} className="flex gap-2">
@@ -148,14 +209,14 @@ export function ChatPage() {
               type="text"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Ask a question..."
-              disabled={answerMutation.isPending}
+              placeholder={selectedLibrary ? `Ask about ${selectedLibrary.name}...` : "Select a library first"}
+              disabled={answerMutation.isPending || !selectedLibrary}
               className="flex-1 px-4 py-3 bg-bg-tertiary border border-border rounded-md text-text-primary placeholder-text-muted focus:outline-none focus:border-primary-600 disabled:opacity-50 transition-all"
             />
             <Button
               type="submit"
               isLoading={answerMutation.isPending}
-              isDisabled={!question.trim()}
+              isDisabled={!question.trim() || !selectedLibrary}
             >
               <PaperAirplaneIcon className="w-5 h-5" />
               Send
