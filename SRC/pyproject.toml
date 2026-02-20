@@ -32,6 +32,8 @@ dependencies = [
     "duckduckgo-search",
     "httpx",
     "easyocr",
-
+    "thefuzz[speedup]>=0.22.1",
+    "playwright>=1.58.0",
+    "pillow>=12.1.1",
 ]
 

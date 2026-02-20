@@ -315,10 +315,16 @@ echo -e "${GREEN}${BOLD}  ║${NC}  ${CYAN}Backend API${NC}  → ${WHITE}http://
 echo -e "${GREEN}${BOLD}  ║${NC}  ${CYAN}PostgreSQL${NC}   → ${WHITE}localhost:${PORT_POSTGRES}${NC}             ${GREEN}${BOLD}║${NC}"
 echo -e "${GREEN}${BOLD}  ║${NC}  ${CYAN}Qdrant${NC}       → ${WHITE}http://localhost:${PORT_QDRANT}${NC}       ${GREEN}${BOLD}║${NC}"
 echo -e "${GREEN}${BOLD}  ║${NC}                                               ${GREEN}${BOLD}║${NC}"
+echo -e "${GREEN}${BOLD}  ║${NC}                                               ${GREEN}${BOLD}║${NC}"
 echo -e "${GREEN}${BOLD}  ╠═══════════════════════════════════════════════╣${NC}"
 echo -e "${GREEN}${BOLD}  ║${NC}  ${DIM}Press ${WHITE}Ctrl+C${NC}${DIM} to stop all services${NC}           ${GREEN}${BOLD}║${NC}"
 echo -e "${GREEN}${BOLD}  ╚═══════════════════════════════════════════════╝${NC}"
 echo ""
+echo -e "\n${CYAN}${BOLD}[ Medicine Scraper Instructions ]${NC}"
+echo -e "  To update the medicine database from EDA:"
+echo -e "  1. Run: ${WHITE}uv run python3 SRC/scripts/scrape_eda.py${NC}"
+echo -e "  2. Open ${WHITE}captcha.jpg${NC} and type the code."
+echo -e "  3. Result saved to ${WHITE}SRC/Assets/Files/eda_medicines.csv${NC}"
 
 # ─────────────────────────────────────────────────────────
 # Tail logs
