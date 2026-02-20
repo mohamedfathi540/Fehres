@@ -24,45 +24,16 @@ import httpx
 
 from .BaseController import basecontroller
 from Helpers.Config import get_settings
+from Stores.LLM.Templates.Locales.en.prescription_extraction import (
+    vision_extraction_prompt,
+    text_extraction_prompt,
+    COMMON_MEDICINES_LIST,
+)
+from Utils.MedicineMatcher import MedicineMatcher
 
 logger = logging.getLogger("uvicorn.error")
 
-# ── Shared vision prompt for all OCR providers ──────────────────────
-OCR_VISION_PROMPT = (
-    "You are an expert Egyptian pharmacist who reads handwritten "
-    "prescriptions daily.\n\n"
-    "TASK: Look at this prescription image and:\n"
-    "1. Read ALL the text you can see\n"
-    "2. Extract every medicine/drug name\n"
-    "3. Provide the active ingredient for each\n\n"
-    "IMPORTANT:\n"
-    "- Prescriptions have NUMBERED items (1, 2, 3, 4...). "
-    "Find a medicine for EVERY numbered item.\n"
-    "- Even if handwriting is messy, give your BEST GUESS.\n"
-    "- Medicine names are always in Latin/English letters.\n"
-    "- Fix obvious misspellings to the correct medicine name.\n\n"
-    "COMMON EGYPT MEDICINES:\n"
-    "Moxclav/Augmentin/Megamox/Hibiotic → Amoxicillin + Clavulanic acid\n"
-    "Phenadon → Paracetamol + Pseudoephedrine + Chlorpheniramine\n"
-    "Phinex/Rhinex → Chlorpheniramine + Pseudoephedrine\n"
-    "Cataflam/Voltaren → Diclofenac\n"
-    "Antinal → Nifuroxazide\n"
-    "Kongestal/Comtrex → Paracetamol + Chlorpheniramine + Pseudoephedrine\n"
-    "Panadol → Paracetamol | Brufen → Ibuprofen\n"
-    "Flagyl/Amrizole → Metronidazole\n"
-    "Nexium → Esomeprazole | Omeprazole → Omeprazole\n"
-    "Ciprocin → Ciprofloxacin | Xithrone → Azithromycin\n"
-    "Glucophage → Metformin | Concor → Bisoprolol\n"
-    "Ventolin → Salbutamol\n\n"
-    "RESPOND WITH EXACTLY THIS JSON FORMAT:\n"
-    "{\n"
-    '  "ocr_text": "full text you read from the image",\n'
-    '  "medicines": [\n'
-    '    {"name": "MedicineName", "active_ingredient": "IngredientName"}\n'
-    "  ]\n"
-    "}\n\n"
-    "Return ONLY the JSON. No explanation."
-)
+
 
 
 class PrescriptionController(basecontroller):
@@ -70,6 +41,24 @@ class PrescriptionController(basecontroller):
     def __init__(self):
         super().__init__()
         self.settings = get_settings()
+        self.medicine_matcher = MedicineMatcher()
+        self._register_common_ingredients()
+
+    def _register_common_ingredients(self):
+        """Parse COMMON_MEDICINES_LIST and register with MedicineMatcher."""
+        for line in COMMON_MEDICINES_LIST.strip().split("\n"):
+            if "→" in line:
+                try:
+                    brands_part, ingredient = line.split("→")
+                    ingredient = ingredient.strip()
+                    # Split brands by / or | or ,
+                    brands = re.split(r"[/|,]", brands_part)
+                    for brand in brands:
+                        brand = brand.strip()
+                        if brand:
+                            self.medicine_matcher.register_ingredient(brand, ingredient)
+                except Exception as e:
+                    logger.error(f"Error parsing common medicine line '{line}': {e}")
 
     # =================================================================
     # MAIN ENTRY POINT
@@ -173,7 +162,9 @@ class PrescriptionController(basecontroller):
         raw_response = await run_in_threadpool(
             ocr_client.ocr_image,
             image_path=file_path,
-            prompt=OCR_VISION_PROMPT,
+            prompt=vision_extraction_prompt.substitute(
+                common_medicines_list=COMMON_MEDICINES_LIST.replace("$", "$$")
+            ),
             max_output_tokens=2048,
             temperature=0.2,
         )
@@ -181,6 +172,8 @@ class PrescriptionController(basecontroller):
         if not raw_response:
             logger.warning("OCR provider returned no response")
             return {"ocr_text": "", "medicines": []}
+
+        logger.info("Raw Vision OCR Response (len=%d): %s", len(raw_response), raw_response)
 
         # Parse the JSON response
         medicines_raw, ocr_text = self._parse_vision_response(raw_response)
@@ -319,49 +312,9 @@ class PrescriptionController(basecontroller):
         if not ocr_text or not ocr_text.strip():
             return []
 
-        prompt = (
-            "You are an expert Egyptian pharmacist who reads handwritten "
-            "prescriptions daily. You know EVERY medicine sold in Egypt.\n\n"
-            "TASK: Read this OCR text from a prescription and extract ALL "
-            "medicines.\n\n"
-            "CRITICAL RULES:\n"
-            "1. Prescriptions have NUMBERED items (1, 2, 3, 4...). "
-            "There should be at least one medicine per numbered item. "
-            "If you see a number without a clear medicine, the OCR "
-            "probably garbled the name — GUESS the most likely medicine.\n"
-            "2. Partial/truncated text IS a medicine:\n"
-            "   - 'Aumentn' or 'Augmnetin' → Augmentin\n"
-            "   - 'Vo' or 'Vol' near 'meals' → Voltaren\n"
-            "   - 'Ome' near 'breakfast' → Omeprazole\n"
-            "   - 'Mox' or 'M0x' → Moxclav\n"
-            "   - 'Phen' or 'Phena' → Phenadon\n"
-            "   - 'Phin' or 'Rhin' → Phinex or Rhinex\n"
-            "   - 'Cat' or 'Cata' → Cataflam\n"
-            "   - 'Bru' or 'Bruf' → Brufen\n"
-            "   - 'Pan' or 'Pana' → Panadol\n"
-            "   - 'Ant' or 'Anti' → Antinal\n"
-            "   - 'Flag' → Flagyl\n"
-            "   - 'Cip' or 'Cipr' → Ciprocin\n"
-            "3. ANY word in Latin/English letters that is NOT a doctor name, "
-            "clinic name, address, or date is probably a medicine.\n\n"
-            "COMMON EGYPT MEDICINES AND THEIR INGREDIENTS:\n"
-            "Moxclav/Augmentin → Amoxicillin + Clavulanic acid\n"
-            "Phenadon → Paracetamol + Pseudoephedrine + Chlorpheniramine\n"
-            "Phinex/Rhinex → Chlorpheniramine + Pseudoephedrine\n"
-            "Cataflam/Voltaren → Diclofenac\n"
-            "Antinal → Nifuroxazide\n"
-            "Kongestal → Paracetamol + Chlorpheniramine + Pseudoephedrine\n"
-            "Panadol → Paracetamol | Brufen → Ibuprofen\n"
-            "Flagyl/Amrizole → Metronidazole\n"
-            "Nexium → Esomeprazole | Omeprazole → Omeprazole\n"
-            "Ciprocin → Ciprofloxacin | Xithrone → Azithromycin\n"
-            "Glucophage → Metformin | Concor → Bisoprolol\n"
-            "Ventolin → Salbutamol\n\n"
-            "RESPONSE FORMAT — Return ONLY a JSON array:\n"
-            '[{"name": "MedicineName", "active_ingredient": "IngredientName"}]\n\n'
-            "If unsure about ingredient, use \"Unknown\".\n"
-            "Return ONLY the JSON array. No explanation.\n\n"
-            f"--- Prescription Text ---\n{ocr_text}\n--- End ---"
+        prompt = text_extraction_prompt.substitute(
+            ocr_text=ocr_text.replace("$", "$$"),
+            common_medicines_list=COMMON_MEDICINES_LIST.replace("$", "$$")
         )
 
         try:
@@ -376,6 +329,8 @@ class PrescriptionController(basecontroller):
             if not response:
                 logger.warning("LLM returned empty response")
                 return []
+
+            logger.info("Raw LLM response: %s", response)
 
             cleaned = response.strip()
             if cleaned.startswith("```"):
@@ -392,11 +347,13 @@ class PrescriptionController(basecontroller):
                 result = []
                 for m in medicines:
                     if isinstance(m, dict) and m.get("name"):
+                        active_ing = m.get("active_ingredient")
+                        if active_ing is None:
+                            active_ing = "Unknown"
+                        
                         result.append({
                             "name": m["name"].strip(),
-                            "active_ingredient": m.get(
-                                "active_ingredient", "Unknown"
-                            ).strip(),
+                            "active_ingredient": str(active_ing).strip(),
                         })
                     elif isinstance(m, str) and m.strip():
                         result.append({
@@ -429,10 +386,24 @@ class PrescriptionController(basecontroller):
             name = med["name"]
             active = med["active_ingredient"]
 
+            # 1. Fuzzy Match Correction
+            corrected_name = self.medicine_matcher.find_best_match(name)
+            if corrected_name:
+                logger.info(f"Fuzzy corrected '{name}' -> '{corrected_name}'")
+                name = corrected_name
+
+            # 2. OpenFDA Search
             openfda_result = await self._search_openfda(name)
             if openfda_result:
                 active = openfda_result
                 logger.info("OpenFDA enhanced '%s': %s", name, active)
+
+            # 3. Local Ingredient Lookup Fallback
+            if active.lower() == "unknown":
+                local_active = self.medicine_matcher.get_active_ingredient(name)
+                if local_active:
+                    active = local_active
+                    logger.info("Local Matcher enhanced '%s': %s", name, active)
 
             image_url = self._build_google_image_url(name)
 

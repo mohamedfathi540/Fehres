@@ -193,25 +193,55 @@ class NLPController (basecontroller) :
         if not retrieved_documents or len(retrieved_documents) == 0:
             return answer, full_prompt, chat_history
 
+        from Utils.MedicineMatcher import MedicineMatcher
+        matcher = MedicineMatcher()
+        
         # Step 2: construct LLM prompt using prescription-specific template
         system_prompt = self.template_parser.get("prescription_rag", "system_prompt")
         doc_lines = []
+        
+        # Track ingredients to find alternatives
+        ingredients_found = set()
+        
         for idx, doc in enumerate(retrieved_documents):
             chunk_text = self.genration_client.process_text(doc.text)
             # Include medicine metadata for richer context
             if getattr(doc, "metadata", None) and isinstance(doc.metadata, dict):
                 parts = []
-                if doc.metadata.get("medicine_name"):
-                    parts.append(f"Medicine: {doc.metadata['medicine_name']}")
-                if doc.metadata.get("active_ingredient"):
-                    parts.append(f"Active Ingredient: {doc.metadata['active_ingredient']}")
+                med_name = doc.metadata.get("medicine_name")
+                if med_name:
+                    parts.append(f"Medicine: {med_name}")
+                
+                active_ing = doc.metadata.get("active_ingredient")
+                if active_ing:
+                    parts.append(f"Active Ingredient: {active_ing}")
+                    if active_ing.lower() != "unknown":
+                        ingredients_found.add((med_name, active_ing))
+                
                 if parts:
                     chunk_text = " | ".join(parts) + "\n" + chunk_text
+            
             doc_lines.append(
                 self.template_parser.get("prescription_rag", "document_prompt", {
                     "doc_num": idx + 1, "chunk_text": chunk_text
                 })
             )
+
+        # Step 2.5: Find real alternatives for found ingredients
+        if ingredients_found:
+            alt_lines = ["\n### REAL DATABASE ALTERNATIVES (FEHRES DATABASE):"]
+            for med_name, ing in ingredients_found:
+                db_alts = matcher.find_medicines_by_ingredient(ing, limit=5)
+                # Filter out the current medicine if it's in the list
+                db_alts = [a for a in db_alts if med_name.lower() not in a.lower()]
+                
+                if db_alts:
+                    alt_lines.append(f"- **{med_name}** ({ing}) → REAL alternatives in stock: {', '.join(db_alts)}")
+            
+            if len(alt_lines) > 1:
+                # Add to the document prompt context
+                doc_lines.append("\n".join(alt_lines))
+
         document_prompt = "\n".join(doc_lines)
 
         footer_prompt = self.template_parser.get("prescription_rag", "footer_prompt", {
