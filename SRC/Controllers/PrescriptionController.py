@@ -289,8 +289,8 @@ class PrescriptionController(basecontroller):
         
         # 2. TrOCR Initialization
         try:
-            processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-handwritten")
-            model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-base-handwritten")
+            processor = TrOCRProcessor.from_pretrained("microsoft/trocr-small-handwritten")
+            model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-small-handwritten")
             device = "cuda" if torch.cuda.is_available() else "cpu"
             model.to(device)
             model.eval()
