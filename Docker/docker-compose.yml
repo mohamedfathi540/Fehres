@@ -17,6 +17,8 @@ services:
     depends_on:
       pgvector:
         condition: service_healthy
+      qdrant:
+        condition: service_started
     env_file:
       - ./env/.env.app
 
@@ -42,6 +44,7 @@ services:
       - ./Nginx/Default.conf:/etc/nginx/conf.d/Default.conf
     depends_on:
       - fastapi
+      - frontend
     networks:
       - backend
     restart: always
@@ -65,7 +68,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-      start_period: 60s
+      start_period: 30s
 
   #Qdrant (Vector DB)
 
