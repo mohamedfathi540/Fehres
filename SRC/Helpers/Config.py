@@ -21,6 +21,7 @@ class settings (BaseSettings):
     EMBEDDING_BACKEND : str
     OCR_BACKEND : str = "LLAMAPARSE"
     OCR_MODEL_ID : Optional[str] = "gemini-2.0-flash"
+    REFINEMENT_LLM_MODEL : Optional[str] = None
  
     OPENAI_API_KEY : Optional[str] = None
     OPENAI_BASE_URL : Optional[str] = None
