@@ -120,10 +120,16 @@ class PrescriptionController(basecontroller):
         medicines_raw = await self._llm_extract_medicines(
             ocr_text, genration_client
         )
+        
+        # Only use algorithmic fallback if LLM extraction completely fails
         if not medicines_raw:
-            return {"ocr_text": ocr_text, "medicines": []}
-
-        medicines = await self._enrich_medicines(medicines_raw)
+            algo_medicines = self.medicine_matcher.extract_medicines_from_text(ocr_text)
+            if not algo_medicines:
+                return {"ocr_text": ocr_text, "medicines": []}
+            medicines = await self._enrich_medicines(algo_medicines)
+        else:
+            medicines = await self._enrich_medicines(medicines_raw)
+            
         return {"ocr_text": ocr_text, "medicines": medicines}
 
     # =================================================================
@@ -140,10 +146,16 @@ class PrescriptionController(basecontroller):
         medicines_raw = await self._llm_extract_medicines(
             ocr_text, genration_client
         )
+        
+        # Only use algorithmic fallback if LLM extraction completely fails
         if not medicines_raw:
-            return {"ocr_text": ocr_text, "medicines": []}
-
-        medicines = await self._enrich_medicines(medicines_raw)
+            algo_medicines = self.medicine_matcher.extract_medicines_from_text(ocr_text)
+            if not algo_medicines:
+                return {"ocr_text": ocr_text, "medicines": []}
+            medicines = await self._enrich_medicines(algo_medicines)
+        else:
+            medicines = await self._enrich_medicines(medicines_raw)
+            
         return {"ocr_text": ocr_text, "medicines": medicines}
 
     # =================================================================
@@ -178,10 +190,15 @@ class PrescriptionController(basecontroller):
         # Parse the JSON response
         medicines_raw, ocr_text = self._parse_vision_response(raw_response)
 
+        # Only use algorithmic fallback if LLM extraction completely fails
         if not medicines_raw:
-            return {"ocr_text": ocr_text, "medicines": []}
-
-        medicines = await self._enrich_medicines(medicines_raw)
+            algo_medicines = self.medicine_matcher.extract_medicines_from_text(ocr_text)
+            if not algo_medicines:
+                return {"ocr_text": ocr_text, "medicines": []}
+            medicines = await self._enrich_medicines(algo_medicines)
+        else:
+            medicines = await self._enrich_medicines(medicines_raw)
+            
         return {"ocr_text": ocr_text, "medicines": medicines}
 
     @staticmethod
@@ -219,6 +236,22 @@ class PrescriptionController(basecontroller):
             logger.error("Failed to parse vision OCR response: %s", e)
             logger.error("Raw text: %s", text[:500])
             return [], ""
+
+    @staticmethod
+    def _merge_medicines(list1: list, list2: list) -> list:
+        """Merge two lists of extracted medicines, avoiding duplicates by name."""
+        merged = []
+        seen = set()
+        for m in list1 + list2:
+            if not m or not isinstance(m, dict) or "name" not in m:
+                continue
+            name_lower = m["name"].strip().lower()
+            if not name_lower:
+                continue
+            if name_lower not in seen:
+                merged.append(m)
+                seen.add(name_lower)
+        return merged
 
     # =================================================================
     # LlamaParse OCR

@@ -16,6 +16,19 @@ class MedicineMatcher:
             cls._instance.medicines = []
             cls._instance.medicine_map = {}
             cls._instance.ingredient_map = {} # brand.lower() -> ingredient
+            cls._instance.word_index = {} # word -> set of canonical names
+            cls._instance.drug_types = {
+                "tab", "tabs", "tablet", "tablets",
+                "cap", "caps", "capsule", "capsules",
+                "syr", "syrup", "susp", "suspension",
+                "sp", "s.p.", "s.p",
+                "amp", "amps", "ampoule", "ampoules",
+                "vial", "vials",
+                "cream", "oint", "ointment", "gel", "lotion", "top", "topical",
+                "supp", "suppository", "suppositories",
+                "sach", "sachets", "drops", "drop",
+                "mg", "gm", "ml", "g", "iu", "mcg"
+            }
             cls._instance._initialized = False
         return cls._instance
 
@@ -25,6 +38,23 @@ class MedicineMatcher:
             
         self._load_data()
         self._initialized = True
+
+    def _add_medicine(self, name: str) -> bool:
+        """Helper to add a medicine and index its words."""
+        name_lower = name.lower()
+        if name_lower not in self.medicine_map:
+            self.medicines.append(name)
+            self.medicine_map[name_lower] = name
+            
+            # Index only the first 2 alphabetical words to avoid generic descriptions (like 'center', 'children')
+            words = re.split(r'[^a-z0-9]', name_lower)
+            valid_words = [w for w in words if len(w) >= 3 and w.isalpha()]
+            for w in set(valid_words[:2]):
+                if w not in self.word_index:
+                    self.word_index[w] = set()
+                self.word_index[w].add(name)
+            return True
+        return False
 
     def _load_data(self):
         """Load medicines from CSVs and fallback list."""
@@ -46,17 +76,16 @@ class MedicineMatcher:
                         name = row.get("name")
                         if name:
                             name = name.strip()
-                            if name.lower() not in self.medicine_map:
-                                self.medicines.append(name)
-                                self.medicine_map[name.lower()] = name
+                            if self._add_medicine(name):
                                 count += 1
                             
                             # Add first word as candidate for better matching
                             first_word = name.split()[0]
                             clean_first = "".join(filter(str.isalnum, first_word))
-                            if len(clean_first) > 3 and clean_first.lower() not in self.medicine_map:
-                                self.medicines.append(clean_first)
-                                self.medicine_map[clean_first.lower()] = name # Map back to full name
+                            if len(clean_first) > 3:
+                                if clean_first.lower() not in self.medicine_map:
+                                    self._add_medicine(clean_first)
+                                    self.medicine_map[clean_first.lower()] = name # Map back to full name
                 logger.info(f"Loaded {count} medicines from Pharmacy_Products.csv")
             except Exception as e:
                 logger.error(f"Failed to load {csv_path}: {e}")
@@ -80,9 +109,7 @@ class MedicineMatcher:
                         name = row.get("Trade Name") or row.get("name")
                         if name:
                             name = name.strip()
-                            if name.lower() not in self.medicine_map:
-                                self.medicines.append(name)
-                                self.medicine_map[name.lower()] = name
+                            if self._add_medicine(name):
                                 eda_count += 1
                 logger.info(f"Loaded {eda_count} medicines from eda_medicines.csv")
             except Exception as e:
@@ -106,9 +133,7 @@ class MedicineMatcher:
         
         fallback_count = 0
         for name in fallback_list:
-            if name.lower() not in self.medicine_map:
-                self.medicines.append(name)
-                self.medicine_map[name.lower()] = name
+            if self._add_medicine(name):
                 fallback_count += 1
         
         logger.info(f"MedicineMatcher initialized with {len(self.medicines)} total unique medicines.")
@@ -145,19 +170,16 @@ class MedicineMatcher:
         # process.extractOne("query", choices)
         
         try:
-            # WRatio handles partial matches and case differences better than token_sort_ratio
-            result = process.extractOne(query, self.medicines, scorer=fuzz.WRatio)
+            # Use token_set_ratio to avoid replacing short names like 'Safe' with huge strings
+            result = process.extractOne(query, self.medicines, scorer=fuzz.token_set_ratio)
             
             if result:
-                # result is expected to be a tuple (match_string, score, index)
-                # handle cases where it might be just (match, score)
                 if len(result) >= 2:
                     match_name = result[0]
                     score = result[1]
                     
-                    if score >= threshold:
+                    if score >= 85: # Use high threshold for short string safety
                         logger.info(f"Fuzzy Match: '{query}' -> '{match_name}' (Score: {score})")
-                        # Return the mapped full name to ensure canonical result
                         return self.medicine_map.get(match_name.lower(), match_name)
         except Exception as e:
             logger.error(f"Fuzzy match error for '{query}': {e}")
@@ -198,5 +220,75 @@ class MedicineMatcher:
                 if len(matches) >= limit:
                     break
         
-        return matches
+        return set(matches) # Avoid duplicates returning list, oops matches is returning list
+
+    def extract_medicines_from_text(self, text: str) -> List[dict]:
+        """
+        Algorithmic extraction of medicines from raw OCR text.
+        Finds drug types and uses word-level indexing combined with fuzzy matching
+        to forcefully match parts of names against the database.
+        """
+        if not text or not text.strip():
+            return []
+
+        # Tokenize preserving some punctuation to split words loosely
+        raw_words = text.split()
+        words = []
+        for rw in raw_words:
+            clean = re.sub(r'[^a-zA-Z0-9]', '', rw).lower()
+            if clean:
+                words.append(clean)
+
+        def is_valid_name_part(w: str) -> bool:
+            if w in self.drug_types: return False
+            if re.match(r'^\d+[a-z]*$', w): return False # skip 500mg, 10g, etc.
+            stop_words = {
+                "patient", "name", "dr", "doctor", "unknown", "drug", 
+                "date", "dated", "age", "aged", "years", "year", "weight", "weighing",
+                "kg", "includes", "four", "medications", "every", "hours", "hour",
+                "center", "address", "emergency", "contact", "numbers", "provided",
+                "bottom", "nose", "two", "the", "for", "and", "from", "image", "prescription"
+            }
+            if w in stop_words: return False
+            return True
+
+        candidates = set()
+        
+        # 1. Search near drug_types (like tab, cap, syr)
+        # Look backwards up to 3 words
+        for i, word in enumerate(words):
+            if word in self.drug_types:
+                start = max(0, i - 3)
+                for j in range(start, i):
+                    w = words[j]
+                    if len(w) >= 4 and is_valid_name_part(w):
+                        # Find matches in word_index
+                        for index_w, meds in self.word_index.items():
+                            if w == index_w or fuzz.ratio(w, index_w) >= 90:
+                                best_med = min(meds, key=len)
+                                candidates.add(best_med)
+
+        # 2. General scan of all words >= 5 length against the word index
+        for w in words:
+            if len(w) >= 5 and is_valid_name_part(w):
+                for index_w, meds in self.word_index.items():
+                    if w == index_w or fuzz.ratio(w, index_w) >= 95:
+                        best_med = min(meds, key=len)
+                        candidates.add(best_med)
+
+        results = []
+        seen = set()
+
+        for cand in candidates:
+            canonical = self.medicine_map.get(cand.lower(), cand)
+            if canonical not in seen:
+                active = self.get_active_ingredient(canonical) or "Unknown"
+                results.append({
+                    "name": canonical,
+                    "active_ingredient": active
+                })
+                seen.add(canonical)
+
+        logger.info(f"Algorithmic extraction found {len(results)} medicines.")
+        return results
 
