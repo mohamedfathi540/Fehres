@@ -97,11 +97,7 @@ class PrescriptionController(basecontroller):
             return await self._pipeline_easyocr(
                 file_path, genration_client
             )
-        elif ocr_backend == "HYBRID_DOCLING_TROCR":
-            # Hybrid Open-Source Pipeline: OpenCV -> Docling -> TrOCR -> LLM
-            return await self._pipeline_hybrid_pro(
-                file_path, genration_client
-            )
+
         else:
             # Vision-based OCR via the provider's ocr_image method
             if ocr_client is None:
@@ -163,46 +159,7 @@ class PrescriptionController(basecontroller):
             
         return {"ocr_text": ocr_text, "medicines": medicines}
 
-    # =================================================================
-    # PIPELINE D: Hybrid Open-Source (OpenCV + Docling + TrOCR + Refinement LLM)
-    # =================================================================
-    async def _pipeline_hybrid_pro(
-        self, file_path: str, genration_client
-    ) -> dict:
-        """OpenCV pre-process -> Docling block detection -> TrOCR extraction -> LLM Refinement."""
-        from fastapi.concurrency import run_in_threadpool
-        
-        # 1. OpenCV Pre-processing
-        cleaned_image_path = await run_in_threadpool(self._preprocess_image_cv2, file_path)
-        
-        # 2. Docling + TrOCR
-        ocr_text = await run_in_threadpool(self._docling_trocr_extract, cleaned_image_path)
-        
-        # Cleanup temporary cleaned image if needed
-        if cleaned_image_path != file_path and os.path.exists(cleaned_image_path):
-            try:
-                os.remove(cleaned_image_path)
-            except Exception as e:
-                logger.warning(f"Failed to remove temp image {cleaned_image_path}: {e}")
 
-        if not ocr_text.strip():
-            return {"ocr_text": "", "medicines": []}
-
-        # 3. LLM Refinement
-        medicines_raw = await self._llm_refine_hybrid(
-            ocr_text, genration_client
-        )
-        
-        # Fallback to algorithmic if extraction fails
-        if not medicines_raw:
-            algo_medicines = self.medicine_matcher.extract_medicines_from_text(ocr_text)
-            if not algo_medicines:
-                return {"ocr_text": ocr_text, "medicines": []}
-            medicines = await self._enrich_medicines(algo_medicines)
-        else:
-            medicines = await self._enrich_medicines(medicines_raw)
-            
-        return {"ocr_text": ocr_text, "medicines": medicines}
 
     def _preprocess_image_cv2(self, file_path: str) -> str:
         """Clean image using OpenCV (remove noise, fix rotation)."""
@@ -243,123 +200,7 @@ class PrescriptionController(basecontroller):
         cv2.imwrite(output_path, rotated)
         return output_path
 
-    def _docling_trocr_extract(self, image_path: str) -> str:
-        """Use Docling to detect text blocks and TrOCR to extract text."""
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            from PIL import Image
-            import torch
-            from transformers import TrOCRProcessor, VisionEncoderDecoderModel
-            from docling.document_converter import DocumentConverter
-            
-        logger.info("Starting Docling layout analysis and TrOCR extraction...")
-        # 1. Docling (extract layout boxes)
-        converter = DocumentConverter()
-        result = converter.convert(image_path)
-        
-        boxes = []
-        try:
-            for item, item_level in result.document.iterate_items():
-                if hasattr(item, "prov") and item.prov:
-                    for prov in item.prov:
-                        if hasattr(prov, "bbox"):
-                            bbox = prov.bbox
-                            if bbox.l != bbox.r and bbox.t != bbox.b:
-                                # Convert docling bbox to (l, t, r, b)
-                                boxes.append((bbox.l, bbox.t, bbox.r, bbox.b))
-        except Exception as e:
-            logger.error(f"Error during Docling layout detection: {e}")
-            
-        try:
-            full_img = Image.open(image_path).convert("RGB")
-        except Exception as e:
-            logger.error(f"Failed to open image for TrOCR: {e}")
-            return ""
 
-        if not boxes:
-            logger.info("Docling found no boxes; using horizontal slices.")
-            width, height = full_img.size
-            step = max(height // 6, 1)
-            for i in range(6):
-                boxes.append((0, i * step, width, min((i + 1) * step, height)))
-
-        # Sort boxes top to bottom
-        boxes = sorted(boxes, key=lambda b: min(b[1], b[3]))
-        
-        # 2. TrOCR Initialization
-        try:
-            processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-handwritten")
-            model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-base-handwritten")
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            model.to(device)
-            model.eval()
-        except Exception as e:
-            logger.error(f"Failed to initialize TrOCR: {e}")
-            return ""
-            
-        # 3. TrOCR Inference
-        extracted_texts = []
-        for box in boxes:
-            try:
-                # docling standard bbox assumes bottom-left or top-left origin
-                l, t, r, b = box
-                # Ensure correct order for crop: (left, upper, right, lower)
-                crop_box = (min(l, r), min(t, b), max(l, r), max(t, b))
-                crop_img = full_img.crop(crop_box)
-                
-                if crop_img.size[1] < 10 or crop_img.size[0] < 10:
-                    continue
-                    
-                pixel_values = processor(crop_img, return_tensors="pt").pixel_values.to(device)
-                with torch.no_grad():
-                    generated_ids = model.generate(pixel_values, max_length=128)
-                text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-                
-                if text.strip():
-                    extracted_texts.append(text.strip())
-            except Exception as e:
-                logger.error(f"TrOCR extraction error for box {box}: {e}")
-                
-        full_text = "\n".join(extracted_texts)
-        logger.info(f"Hybrid OCR extracted {len(full_text)} characters.")
-        logger.info(f"OCR text:\n{full_text}")
-        return full_text
-
-    async def _llm_refine_hybrid(
-        self, ocr_text: str, genration_client
-    ) -> List[dict]:
-        """Use a tiny LLM to clean the OCR text, then extract medicines."""
-        from fastapi.concurrency import run_in_threadpool
-        
-        prompt = (
-            "Fix the medical terms in this OCR text. Output STRICTLY the corrected text without any chat or explanation.\n"
-            "Example:\n"
-            "Input: 'Amox-cilin 500mg, Pnadol advance'\nOutput: 'Amoxicillin 500mg, Panadol Advance'\n\n"
-            f"Input: '{ocr_text}'\nOutput:"
-        )
-
-        try:
-            # 1. Ask the small LLM to correct the garbled OCR
-            response = await run_in_threadpool(
-                genration_client.genrate_text,
-                prompt=prompt,
-                chat_history=[],
-                max_output_tokens=512,
-                temperature=0.1,
-            )
-            
-            cleaned_text = response.strip() if response else ocr_text
-            logger.info("Tiny LLM Refined text:\n%s", cleaned_text)
-            
-            # 2. Extract specific medicine entities from the cleaned text using the algorithmic matcher
-            algo_medicines = self.medicine_matcher.extract_medicines_from_text(cleaned_text)
-            
-            return algo_medicines
-            
-        except Exception as e:
-            logger.error("Hybrid Refinement error: %s", e)
-            return []
 
     # =================================================================
     # PIPELINE B: Vision OCR (uses provider.ocr_image)
