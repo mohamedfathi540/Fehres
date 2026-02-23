@@ -273,6 +273,12 @@ if [ ! -d "node_modules" ]; then
     pnpm install --frozen-lockfile 2>&1 | tail -1
 fi
 
+# Load NVM and run
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+    source "$HOME/.nvm/nvm.sh"
+    nvm use 22 || nvm install 22
+fi
+
 nohup pnpm dev --host 0.0.0.0 > "$LOG_DIR/frontend.log" 2>&1 &
 echo $! > "$FRONTEND_PID"
 success "Frontend starting (PID: $(cat "$FRONTEND_PID"))"

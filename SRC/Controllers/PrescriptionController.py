@@ -97,11 +97,7 @@ class PrescriptionController(basecontroller):
             return await self._pipeline_easyocr(
                 file_path, genration_client
             )
-        elif ocr_backend == "HYBRID_DOCLING_TROCR":
-            # Hybrid Open-Source Pipeline: OpenCV -> Docling -> TrOCR -> LLM
-            return await self._pipeline_hybrid_pro(
-                file_path, genration_client
-            )
+
         else:
             # Vision-based OCR via the provider's ocr_image method
             if ocr_client is None:
@@ -163,46 +159,7 @@ class PrescriptionController(basecontroller):
             
         return {"ocr_text": ocr_text, "medicines": medicines}
 
-    # =================================================================
-    # PIPELINE D: Hybrid Open-Source (OpenCV + Docling + TrOCR + Refinement LLM)
-    # =================================================================
-    async def _pipeline_hybrid_pro(
-        self, file_path: str, genration_client
-    ) -> dict:
-        """OpenCV pre-process -> Docling block detection -> TrOCR extraction -> LLM Refinement."""
-        from fastapi.concurrency import run_in_threadpool
-        
-        # 1. OpenCV Pre-processing
-        cleaned_image_path = await run_in_threadpool(self._preprocess_image_cv2, file_path)
-        
-        # 2. Docling + TrOCR
-        ocr_text = await run_in_threadpool(self._docling_trocr_extract, cleaned_image_path)
-        
-        # Cleanup temporary cleaned image if needed
-        if cleaned_image_path != file_path and os.path.exists(cleaned_image_path):
-            try:
-                os.remove(cleaned_image_path)
-            except Exception as e:
-                logger.warning(f"Failed to remove temp image {cleaned_image_path}: {e}")
 
-        if not ocr_text.strip():
-            return {"ocr_text": "", "medicines": []}
-
-        # 3. LLM Refinement
-        medicines_raw = await self._llm_refine_hybrid(
-            ocr_text, genration_client
-        )
-        
-        # Fallback to algorithmic if extraction fails
-        if not medicines_raw:
-            algo_medicines = self.medicine_matcher.extract_medicines_from_text(ocr_text)
-            if not algo_medicines:
-                return {"ocr_text": ocr_text, "medicines": []}
-            medicines = await self._enrich_medicines(algo_medicines)
-        else:
-            medicines = await self._enrich_medicines(medicines_raw)
-            
-        return {"ocr_text": ocr_text, "medicines": medicines}
 
     def _preprocess_image_cv2(self, file_path: str) -> str:
         """Clean image using OpenCV (remove noise, fix rotation)."""
@@ -243,40 +200,8 @@ class PrescriptionController(basecontroller):
         cv2.imwrite(output_path, rotated)
         return output_path
 
-    def _docling_trocr_extract(self, image_path: str) -> str:
-        """Use Docling to detect text blocks and TrOCR to extract text."""
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            from PIL import Image
-            import torch
-            from transformers import TrOCRProcessor, VisionEncoderDecoderModel
-            from docling.document_converter import DocumentConverter
-            
-        logger.info("Starting Docling layout analysis and TrOCR extraction...")
-        # 1. Docling (extract layout boxes)
-        converter = DocumentConverter()
-        result = converter.convert(image_path)
-        
-        boxes = []
-        try:
-            for item, item_level in result.document.iterate_items():
-                if hasattr(item, "prov") and item.prov:
-                    for prov in item.prov:
-                        if hasattr(prov, "bbox"):
-                            bbox = prov.bbox
-                            if bbox.l != bbox.r and bbox.t != bbox.b:
-                                # Convert docling bbox to (l, t, r, b)
-                                boxes.append((bbox.l, bbox.t, bbox.r, bbox.b))
-        except Exception as e:
-            logger.error(f"Error during Docling layout detection: {e}")
-            
-        try:
-            full_img = Image.open(image_path).convert("RGB")
-        except Exception as e:
-            logger.error(f"Failed to open image for TrOCR: {e}")
-            return ""
 
+<<<<<<< HEAD
         if not boxes:
             logger.info("Docling found no boxes; using horizontal slices.")
             width, height = full_img.size
@@ -360,6 +285,8 @@ class PrescriptionController(basecontroller):
         except Exception as e:
             logger.error("Hybrid Refinement error: %s", e)
             return []
+=======
+>>>>>>> 1598d255663bcf93edb27ad9ebf37c6c7ec4feb9
 
     # =================================================================
     # PIPELINE B: Vision OCR (uses provider.ocr_image)
