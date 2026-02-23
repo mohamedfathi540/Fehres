@@ -44,7 +44,7 @@ services:
       - fastapi
     networks:
       - backend
-    restart: always
+    restart: always 
 
   #PostgreSQL (PGvector)
 
