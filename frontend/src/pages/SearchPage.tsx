@@ -61,7 +61,7 @@ export function SearchPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Enter your search query..."
-              className="flex-1 px-4 py-3 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-primary-500"
+              className="flex-1 min-w-0 px-3 sm:px-4 py-3 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-primary-500 text-base"
             />
             <Button
               type="submit"
@@ -121,7 +121,7 @@ export function SearchPage() {
                     <p className="text-text-primary">
                       {isExpanded ?
                         result.text
-                      : truncateText(result.text, 200)}
+                        : truncateText(result.text, 200)}
                     </p>
                   </div>
                   <button className="ml-4 text-text-muted hover:text-text-primary">
@@ -151,7 +151,7 @@ export function SearchPage() {
             Error:{" "}
             {searchMutation.error instanceof Error ?
               searchMutation.error.message
-            : "Search failed"}
+              : "Search failed"}
           </p>
         </Card>
       )}

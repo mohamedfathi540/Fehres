@@ -118,7 +118,7 @@ export function PrescriptionPage() {
 
             {/* Upload Zone */}
             <div
-                className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 cursor-pointer ${isDragging
+                className={`relative border-2 border-dashed rounded-xl p-4 sm:p-8 text-center transition-all duration-200 cursor-pointer ${isDragging
                     ? "border-primary-500 bg-primary-500/10"
                     : previewUrl
                         ? "border-border bg-bg-secondary"
@@ -267,7 +267,7 @@ export function PrescriptionPage() {
                                 className="bg-bg-secondary border border-border rounded-xl p-5 hover:border-primary-600/50 transition-colors"
                             >
                                 {/* Medicine Info */}
-                                <div className="flex items-start justify-between gap-4">
+                                <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
                                     <div className="flex-1 min-w-0">
                                         <h3 className="text-lg font-bold text-text-primary">
                                             <span className="text-primary-400 mr-1.5">
@@ -291,7 +291,7 @@ export function PrescriptionPage() {
                                             href={med.image_url}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-primary-600/20 hover:bg-primary-600/30 text-primary-400 rounded-lg border border-primary-600/30 transition-all duration-200 hover:scale-105 text-sm font-medium"
+                                            className="shrink-0 self-start flex items-center gap-2 px-4 py-2.5 bg-primary-600/20 hover:bg-primary-600/30 text-primary-400 rounded-lg border border-primary-600/30 transition-all duration-200 hover:scale-105 text-sm font-medium"
                                             onClick={(e) => e.stopPropagation()}
                                         >
                                             🔍 View Images

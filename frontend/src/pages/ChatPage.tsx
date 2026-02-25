@@ -71,7 +71,7 @@ export function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col" style={{ height: "calc(100vh - 3rem)" }}>
+    <div className="flex flex-col" style={{ height: "calc(100vh - 5rem)" }}>
       {/* Header */}
       <div className="shrink-0 mb-4">
         <h2 className="text-2xl font-semibold text-text-primary tracking-tight">
@@ -136,7 +136,7 @@ export function ChatPage() {
                       }`}
                   >
                     <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-3 ${message.role === "user"
+                      className={`max-w-[90%] sm:max-w-[85%] rounded-2xl px-3 sm:px-4 py-3 ${message.role === "user"
                         ? "bg-primary-600 text-white rounded-br-none"
                         : "bg-bg-tertiary text-text-primary border border-border rounded-bl-none"
                         }`}
@@ -187,7 +187,7 @@ export function ChatPage() {
                   onChange={(e) => setQuestion(e.target.value)}
                   placeholder="Ask about your medicines..."
                   disabled={answerMutation.isPending}
-                  className="flex-1 px-4 py-3 bg-bg-tertiary border border-border rounded-md text-text-primary placeholder-text-muted focus:outline-none focus:border-primary-600 disabled:opacity-50 transition-all"
+                  className="flex-1 min-w-0 px-3 sm:px-4 py-3 bg-bg-tertiary border border-border rounded-md text-text-primary placeholder-text-muted focus:outline-none focus:border-primary-600 disabled:opacity-50 transition-all text-base"
                 />
                 <Button
                   type="submit"
