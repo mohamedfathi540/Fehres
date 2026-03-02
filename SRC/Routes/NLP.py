@@ -8,6 +8,7 @@ from Controllers.NLPController import NLPController
 from Models.enums.ResponsEnums import ResponseSignal
 from Helpers.Config import get_settings
 from tqdm.auto import tqdm
+from Utils.PromptGuard import PromptGuard
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -162,6 +163,14 @@ async def search_index(request :Request ,project_id :int , search_request : Sear
 @nlp_router.post("/index/answer/{project_id}")
 async def answer_index(request :Request ,project_id :int , search_request : SearchRequest) :
     
+    # ── Prompt Guard: validate input ──
+    is_safe, reason = PromptGuard.validate_input(search_request.text)
+    if not is_safe:
+        logger.warning("Prompt injection blocked: %s", reason)
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"Signal": "PROMPT_INJECTION_BLOCKED", "Reason": reason}
+        )
     
     project_model = await projectModel.create_instance(db_client=request.app.db_client)
     chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
@@ -185,6 +194,12 @@ async def answer_index(request :Request ,project_id :int , search_request : Sear
         return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST,
                             content={"Signal" : ResponseSignal.ANSWER_INDEX_ERROR.value}
                             )
+
+    # ── Prompt Guard: validate output ──
+    output_safe, output_reason = PromptGuard.validate_output(answer)
+    if not output_safe:
+        logger.warning("Output leak blocked: %s", output_reason)
+        answer = "I can only help with questions about the provided documents."
 
     return JSONResponse(
         content={"Signal" : ResponseSignal.ANSWER_INDEX_DONE.value ,
