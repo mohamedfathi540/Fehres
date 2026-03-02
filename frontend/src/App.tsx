@@ -4,6 +4,10 @@ import { MainLayout } from "./components/layout/MainLayout";
 import { ChatPage } from "./pages/ChatPage";
 import { SearchPage } from "./pages/SearchPage";
 import { PrescriptionPage } from "./pages/PrescriptionPage";
+import { LoginPage } from "./pages/LoginPage";
+import { RegisterPage } from "./pages/RegisterPage";
+import { VerifyEmailPage } from "./pages/VerifyEmailPage";
+import { useAuthStore } from "./stores/authStore";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,12 +18,57 @@ const queryClient = new QueryClient({
   },
 });
 
+/** Wrapper that redirects to /login when unauthenticated */
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+}
+
+/** Wrapper that redirects to / when already authenticated */
+function GuestOnly({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<MainLayout />}>
+          {/* ── Public auth routes ─────────────────────────── */}
+          <Route
+            path="/login"
+            element={
+              <GuestOnly>
+                <LoginPage />
+              </GuestOnly>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <GuestOnly>
+                <RegisterPage />
+              </GuestOnly>
+            }
+          />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+
+          {/* ── Protected app routes ──────────────────────── */}
+          <Route
+            path="/"
+            element={
+              <RequireAuth>
+                <MainLayout />
+              </RequireAuth>
+            }
+          >
             <Route index element={<ChatPage />} />
             <Route path="search" element={<SearchPage />} />
             <Route path="prescription" element={<PrescriptionPage />} />

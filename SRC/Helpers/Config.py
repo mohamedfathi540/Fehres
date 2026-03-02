@@ -89,6 +89,16 @@ class settings (BaseSettings):
     # BM25 index persistence directory (default: under SRC/data/bm25)
     BM25_INDEX_DIR : Optional[str] = None
 
+    # ── Authentication / JWT ──
+    JWT_SECRET : str = "change-me-in-production"
+    JWT_ALGORITHM : str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES : int = 60
+
+    # ── Email Verification (Brevo) ──
+    BREVO_API_KEY : Optional[str] = None
+    SENDER_EMAIL : str = "noreply@yourdomain.com"
+    FRONTEND_URL : str = "http://localhost:5173"
+
     model_config = SettingsConfigDict(env_file=".env")
 
 def get_settings () :

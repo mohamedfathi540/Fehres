@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance, type AxiosError } from 'axios';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useAuthStore } from '../stores/authStore';
 
 // Create axios instance
 const createApiClient = (): AxiosInstance => {
@@ -11,11 +12,18 @@ const createApiClient = (): AxiosInstance => {
         },
     });
 
-    // Request interceptor to add base URL from settings
+    // Request interceptor to add base URL and auth token from stores
     client.interceptors.request.use(
         (config) => {
             const { apiUrl } = useSettingsStore.getState();
             config.baseURL = apiUrl;
+
+            // Inject JWT token if available
+            const { token } = useAuthStore.getState();
+            if (token) {
+                config.headers.Authorization = `Bearer ${token}`;
+            }
+
             return config;
         },
         (error) => Promise.reject(error)
@@ -26,15 +34,19 @@ const createApiClient = (): AxiosInstance => {
         (response) => response,
         (error: AxiosError) => {
             if (error.response) {
-                // The request was made and the server responded with an error status
-                const errorData = error.response.data as { signal?: string; Signal?: string; error?: string };
-                const errorMessage = errorData.signal || errorData.Signal || errorData.error || 'An error occurred';
+                // If 401 Unauthorized, clear auth state and redirect to login
+                if (error.response.status === 401) {
+                    useAuthStore.getState().logout();
+                    window.location.href = '/login';
+                    return Promise.reject(new Error('Session expired. Please log in again.'));
+                }
+
+                const errorData = error.response.data as { signal?: string; Signal?: string; error?: string; detail?: string };
+                const errorMessage = errorData.detail || errorData.signal || errorData.Signal || errorData.error || 'An error occurred';
                 return Promise.reject(new Error(errorMessage));
             } else if (error.request) {
-                // The request was made but no response was received
                 return Promise.reject(new Error('No response from server. Please check if the API is running.'));
             } else {
-                // Something happened in setting up the request
                 return Promise.reject(new Error(error.message));
             }
         }
@@ -52,13 +64,19 @@ export const uploadFileWithProgress = async (
     onProgress?: (progress: number) => void
 ) => {
     const { apiUrl } = useSettingsStore.getState();
+    const { token } = useAuthStore.getState();
     const formData = new FormData();
     formData.append('file', file);
 
+    const headers: Record<string, string> = {
+        'Content-Type': 'multipart/form-data',
+    };
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    }
+
     return axios.post(`${apiUrl}${url}`, formData, {
-        headers: {
-            'Content-Type': 'multipart/form-data',
-        },
+        headers,
         onUploadProgress: (progressEvent) => {
             if (onProgress && progressEvent.total) {
                 const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -68,3 +86,4 @@ export const uploadFileWithProgress = async (
         timeout: 60000,
     });
 };
+
