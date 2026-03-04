@@ -68,6 +68,7 @@ class PrescriptionController(basecontroller):
         file_path: str,
         genration_client,
         ocr_client=None,
+        on_progress=None,
     ) -> dict:
         """
         Full pipeline:
@@ -81,7 +82,11 @@ class PrescriptionController(basecontroller):
                               LLAMAPARSE pipeline for medicine extraction)
             ocr_client: OCR provider created by LLMProviderFactory.create_ocr()
                         None if OCR_BACKEND is LLAMAPARSE
+            on_progress: Optional async callback(step, detail, percent)
         """
+        if on_progress is None:
+            async def on_progress(step, detail, percent): pass
+
         ocr_backend = getattr(
             self.settings, "OCR_BACKEND", "LLAMAPARSE"
         ).upper()
@@ -90,12 +95,12 @@ class PrescriptionController(basecontroller):
         if ocr_backend == "LLAMAPARSE":
             # LlamaParse text OCR → LLM extraction
             return await self._pipeline_llamaparse(
-                file_path, genration_client
+                file_path, genration_client, on_progress
             )
         elif ocr_backend == "EASYOCR":
             # Local EasyOCR text OCR → LLM extraction
             return await self._pipeline_easyocr(
-                file_path, genration_client
+                file_path, genration_client, on_progress
             )
 
         else:
@@ -105,19 +110,24 @@ class PrescriptionController(basecontroller):
                     f"OCR_BACKEND is set to '{ocr_backend}' but no OCR "
                     f"client was initialized. Check your API key in .env."
                 )
-            return await self._pipeline_vision(file_path, ocr_client)
+            return await self._pipeline_vision(file_path, ocr_client, on_progress)
 
     # =================================================================
     # PIPELINE A: LlamaParse OCR → HuggingFace LLM extraction
     # =================================================================
     async def _pipeline_llamaparse(
-        self, file_path: str, genration_client
+        self, file_path: str, genration_client, on_progress=None
     ) -> dict:
         """LlamaParse text OCR → LLM medicine extraction pipeline."""
+        if on_progress is None:
+            async def on_progress(step, detail, percent): pass
+
+        await on_progress("ocr", "Extracting text from image (LlamaParse)...", 15)
         ocr_text = await self._ocr_llamaparse(file_path)
         if not ocr_text.strip():
             return {"ocr_text": "", "medicines": []}
 
+        await on_progress("extraction", "Identifying medicine names...", 40)
         medicines_raw = await self._llm_extract_medicines(
             ocr_text, genration_client
         )
@@ -127,8 +137,10 @@ class PrescriptionController(basecontroller):
             algo_medicines = self.medicine_matcher.extract_medicines_from_text(ocr_text)
             if not algo_medicines:
                 return {"ocr_text": ocr_text, "medicines": []}
+            await on_progress("enrichment", "Looking up active ingredients...", 65)
             medicines = await self._enrich_medicines(algo_medicines)
         else:
+            await on_progress("enrichment", "Looking up active ingredients...", 65)
             medicines = await self._enrich_medicines(medicines_raw)
             
         return {"ocr_text": ocr_text, "medicines": medicines}
@@ -137,13 +149,18 @@ class PrescriptionController(basecontroller):
     # PIPELINE C: EasyOCR (Local) → LLM extraction
     # =================================================================
     async def _pipeline_easyocr(
-        self, file_path: str, genration_client
+        self, file_path: str, genration_client, on_progress=None
     ) -> dict:
         """EasyOCR text extraction → LLM medicine extraction pipeline."""
+        if on_progress is None:
+            async def on_progress(step, detail, percent): pass
+
+        await on_progress("ocr", "Extracting text from image (EasyOCR)...", 15)
         ocr_text = await self._ocr_easyocr(file_path)
         if not ocr_text.strip():
             return {"ocr_text": "", "medicines": []}
 
+        await on_progress("extraction", "Identifying medicine names...", 40)
         medicines_raw = await self._llm_extract_medicines(
             ocr_text, genration_client
         )
@@ -153,8 +170,10 @@ class PrescriptionController(basecontroller):
             algo_medicines = self.medicine_matcher.extract_medicines_from_text(ocr_text)
             if not algo_medicines:
                 return {"ocr_text": ocr_text, "medicines": []}
+            await on_progress("enrichment", "Looking up active ingredients...", 65)
             medicines = await self._enrich_medicines(algo_medicines)
         else:
+            await on_progress("enrichment", "Looking up active ingredients...", 65)
             medicines = await self._enrich_medicines(medicines_raw)
             
         return {"ocr_text": ocr_text, "medicines": medicines}
@@ -206,13 +225,18 @@ class PrescriptionController(basecontroller):
     # PIPELINE B: Vision OCR (uses provider.ocr_image)
     # =================================================================
     async def _pipeline_vision(
-        self, file_path: str, ocr_client
+        self, file_path: str, ocr_client, on_progress=None
     ) -> dict:
         """
         Send image to the OCR provider's ocr_image method.
         Works with any provider that implements LLMInterface.ocr_image.
         """
         from fastapi.concurrency import run_in_threadpool
+
+        if on_progress is None:
+            async def on_progress(step, detail, percent): pass
+
+        await on_progress("ocr", "Sending image to vision AI...", 15)
 
         # Call the provider's ocr_image (synchronous) in a thread pool
         raw_response = await run_in_threadpool(
@@ -231,6 +255,8 @@ class PrescriptionController(basecontroller):
 
         logger.info("Raw Vision OCR Response (len=%d): %s", len(raw_response), raw_response)
 
+        await on_progress("extraction", "Parsing medicine data from response...", 45)
+
         # Parse the JSON response
         medicines_raw, ocr_text = self._parse_vision_response(raw_response)
 
@@ -239,8 +265,10 @@ class PrescriptionController(basecontroller):
             algo_medicines = self.medicine_matcher.extract_medicines_from_text(ocr_text)
             if not algo_medicines:
                 return {"ocr_text": ocr_text, "medicines": []}
+            await on_progress("enrichment", "Looking up active ingredients...", 65)
             medicines = await self._enrich_medicines(algo_medicines)
         else:
+            await on_progress("enrichment", "Looking up active ingredients...", 65)
             medicines = await self._enrich_medicines(medicines_raw)
             
         return {"ocr_text": ocr_text, "medicines": medicines}

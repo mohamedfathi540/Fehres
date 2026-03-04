@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { authApi } from "../api/auth";
 
@@ -10,6 +10,7 @@ export function VerifyEmailPage() {
         "loading"
     );
     const [message, setMessage] = useState("");
+    const calledRef = useRef(false);
 
     useEffect(() => {
         if (!token) {
@@ -17,6 +18,11 @@ export function VerifyEmailPage() {
             setMessage("No verification token provided.");
             return;
         }
+
+        // Prevent React strict-mode double-invocation from consuming
+        // the token twice (second call would get 400).
+        if (calledRef.current) return;
+        calledRef.current = true;
 
         authApi
             .verifyEmail(token)

@@ -12,9 +12,19 @@ export function LoginPage() {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
+    // Resend verification state
+    const [resendLoading, setResendLoading] = useState(false);
+    const [resendMsg, setResendMsg] = useState("");
+    const [resendCooldown, setResendCooldown] = useState(false);
+
+    const isVerificationError =
+        error.toLowerCase().includes("not verified") ||
+        error.toLowerCase().includes("email not verified");
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
+        setResendMsg("");
         setLoading(true);
 
         try {
@@ -27,6 +37,26 @@ export function LoginPage() {
             setError(detail);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleResend = async () => {
+        if (!email || resendCooldown) return;
+        setResendLoading(true);
+        setResendMsg("");
+
+        try {
+            const res = await authApi.resendVerification(email);
+            setResendMsg(res.message);
+            // 60-second cooldown to prevent spam
+            setResendCooldown(true);
+            setTimeout(() => setResendCooldown(false), 60000);
+        } catch (err: any) {
+            const detail =
+                err?.response?.data?.detail ?? "Failed to resend. Try again later.";
+            setResendMsg(detail);
+        } finally {
+            setResendLoading(false);
         }
     };
 
@@ -47,7 +77,28 @@ export function LoginPage() {
                 <div className="bg-bg-card border border-border rounded-xl p-6 space-y-5 shadow-lg shadow-black/30">
                     {error && (
                         <div className="bg-error/10 border border-error/30 rounded-lg px-4 py-3 text-sm text-error">
-                            {error}
+                            <p>{error}</p>
+                            {isVerificationError && (
+                                <div className="mt-3 pt-3 border-t border-error/20">
+                                    <button
+                                        type="button"
+                                        onClick={handleResend}
+                                        disabled={resendLoading || resendCooldown}
+                                        className="text-primary-400 hover:text-primary-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium underline underline-offset-2 transition-colors"
+                                    >
+                                        {resendLoading
+                                            ? "Sending…"
+                                            : resendCooldown
+                                                ? "Email sent — check your inbox"
+                                                : "Resend verification email"}
+                                    </button>
+                                    {resendMsg && (
+                                        <p className="mt-2 text-xs text-text-secondary">
+                                            {resendMsg}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 

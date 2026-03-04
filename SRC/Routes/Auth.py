@@ -107,3 +107,38 @@ async def verify_email(request: Request, token: str):
         await session.commit()
 
     return {"message": "Email successfully verified. You can now log in."}
+
+
+# ── Resend verification email ───────────────────────────────────────
+@auth_router.post("/resend-verification")
+async def resend_verification(request: Request, body: dict):
+    """Resend the verification email for an unverified account."""
+    email = body.get("email", "").strip().lower()
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email address is required.",
+        )
+
+    async with request.app.db_client() as session:
+        result = await session.execute(
+            select(User).where(User.email == email)
+        )
+        db_user = result.scalar_one_or_none()
+
+        # Always return success to avoid leaking whether an account exists
+        if db_user is None or db_user.is_verified:
+            return {"message": "If the account exists and is unverified, a new email has been sent."}
+
+        # Generate a fresh token
+        new_token = str(uuid.uuid4())
+        db_user.verification_token = new_token
+        await session.commit()
+
+    # Send the email
+    try:
+        await send_verification_email(email, new_token)
+    except Exception as exc:
+        logger.error("Failed to resend verification email: %s", exc)
+
+    return {"message": "If the account exists and is unverified, a new email has been sent."}

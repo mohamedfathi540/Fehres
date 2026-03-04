@@ -51,6 +51,9 @@ async def send_verification_email(email: str, token: str) -> None:
 
     async with httpx.AsyncClient() as client:
         response = await client.post(url, json=payload, headers=headers)
+        logger.info(
+            "Brevo API response [%s]: %s", response.status_code, response.text
+        )
         response.raise_for_status()
 
     logger.info("Verification email sent to %s", email)

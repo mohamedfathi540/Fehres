@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
-import { analyzePrescription } from "../api/prescription";
+import { analyzePrescriptionStream } from "../api/prescription";
+import type { OcrProgressEvent } from "../api/prescription";
 import type { MedicineInfo } from "../api/types";
 import { Button } from "../components/ui/Button";
 import { useSettingsStore } from "../stores/settingsStore";
@@ -14,6 +15,16 @@ function fileToDataUrl(file: File): Promise<string> {
     });
 }
 
+/** Pipeline step definitions */
+const PIPELINE_STEPS = [
+    { key: "upload", label: "Upload", icon: "📤" },
+    { key: "ocr", label: "OCR Processing", icon: "🔍" },
+    { key: "extraction", label: "Medicine Extraction", icon: "💊" },
+    { key: "enrichment", label: "Ingredient Lookup", icon: "🧪" },
+    { key: "indexing", label: "Indexing", icon: "📚" },
+    { key: "complete", label: "Complete", icon: "✅" },
+];
+
 export function PrescriptionPage() {
     const { prescriptionResult, setPrescriptionResult } = useSettingsStore();
 
@@ -22,7 +33,9 @@ export function PrescriptionPage() {
         prescriptionResult?.previewDataUrl ?? null
     );
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [progress, setProgress] = useState(0);
+    const [currentStep, setCurrentStep] = useState("");
+    const [stepDetail, setStepDetail] = useState("");
+    const [progressPercent, setProgressPercent] = useState(0);
     const [ocrText, setOcrText] = useState<string>(
         prescriptionResult?.ocrText ?? ""
     );
@@ -36,11 +49,11 @@ export function PrescriptionPage() {
     );
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const abortRef = useRef<{ abort: () => void } | null>(null);
 
     const handleFile = useCallback(async (f: File) => {
         setFile(f);
         setError(null);
-        // Don't clear previous results until new analysis is run
         const dataUrl = await fileToDataUrl(f);
         setPreviewUrl(dataUrl);
     }, []);
@@ -55,44 +68,60 @@ export function PrescriptionPage() {
         [handleFile]
     );
 
-    const handleAnalyze = async () => {
+    const handleAnalyze = () => {
         if (!file) return;
         setIsAnalyzing(true);
-        setProgress(0);
+        setProgressPercent(0);
+        setCurrentStep("upload");
+        setStepDetail("Preparing upload...");
         setError(null);
         setMedicines([]);
         setOcrText("");
         setSignal("");
 
-        try {
-            const result = await analyzePrescription(file, setProgress);
-            const newOcrText = result.ocr_text || "";
-            const newMedicines = result.medicines || [];
-            const newSignal = result.signal || "";
-            const newProjectId = result.project_id ?? null;
+        const handle = analyzePrescriptionStream(
+            file,
+            // onProgress
+            (event: OcrProgressEvent) => {
+                setCurrentStep(event.step);
+                setStepDetail(event.detail);
+                setProgressPercent(event.progress);
+            },
+            // onResult
+            (result) => {
+                const newOcrText = result.ocr_text || "";
+                const newMedicines = result.medicines || [];
+                const newSignal = result.signal || "";
+                const newProjectId = result.project_id ?? null;
 
-            setOcrText(newOcrText);
-            setMedicines(newMedicines);
-            setSignal(newSignal);
+                setOcrText(newOcrText);
+                setMedicines(newMedicines);
+                setSignal(newSignal);
+                setIsAnalyzing(false);
 
-            // Persist to store so results survive page switches
-            setPrescriptionResult({
-                ocrText: newOcrText,
-                medicines: newMedicines,
-                signal: newSignal,
-                previewDataUrl: previewUrl,
-                projectId: newProjectId,
-            });
-        } catch (err: unknown) {
-            const message =
-                err instanceof Error ? err.message : "Analysis failed";
-            setError(message);
-        } finally {
-            setIsAnalyzing(false);
-        }
+                setPrescriptionResult({
+                    ocrText: newOcrText,
+                    medicines: newMedicines,
+                    signal: newSignal,
+                    previewDataUrl: previewUrl,
+                    projectId: newProjectId,
+                });
+            },
+            // onError
+            (errorMsg) => {
+                setError(errorMsg);
+                setIsAnalyzing(false);
+            }
+        );
+
+        abortRef.current = handle;
     };
 
     const handleReset = () => {
+        if (abortRef.current) {
+            abortRef.current.abort();
+            abortRef.current = null;
+        }
         setFile(null);
         setPreviewUrl(null);
         setMedicines([]);
@@ -100,7 +129,21 @@ export function PrescriptionPage() {
         setError(null);
         setSignal("");
         setShowOcr(false);
+        setIsAnalyzing(false);
+        setCurrentStep("");
+        setStepDetail("");
+        setProgressPercent(0);
         setPrescriptionResult(null);
+    };
+
+    /** Get the visual state of a pipeline step */
+    const getStepState = (stepKey: string) => {
+        if (!currentStep) return "pending";
+        const currentIdx = PIPELINE_STEPS.findIndex(s => s.key === currentStep);
+        const stepIdx = PIPELINE_STEPS.findIndex(s => s.key === stepKey);
+        if (stepIdx < currentIdx) return "done";
+        if (stepIdx === currentIdx) return "active";
+        return "pending";
     };
 
     return (
@@ -190,12 +233,10 @@ export function PrescriptionPage() {
                         onPress={handleAnalyze}
                         isLoading={isAnalyzing}
                         variant="primary"
-                        isDisabled={!file}
+                        isDisabled={!file || isAnalyzing}
                     >
                         {isAnalyzing
-                            ? progress < 100
-                                ? `Uploading... ${progress}%`
-                                : "Analyzing prescription..."
+                            ? "Analyzing..."
                             : "🔍 Analyze Prescription"}
                     </Button>
                     {!isAnalyzing && (
@@ -206,28 +247,77 @@ export function PrescriptionPage() {
                 </div>
             )}
 
-            {/* Loading Indicator */}
+            {/* ── Real-Time Progress Stepper ── */}
             {isAnalyzing && (
                 <div className="bg-bg-secondary rounded-xl p-6 border border-border">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 mb-5">
                         <div className="animate-spin w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full" />
                         <div>
                             <p className="text-text-primary font-medium">
                                 Processing prescription...
                             </p>
                             <p className="text-sm text-text-muted mt-0.5">
-                                Running OCR → Extracting medicines → Indexing for chat
+                                {stepDetail}
                             </p>
                         </div>
                     </div>
-                    {progress > 0 && progress < 100 && (
-                        <div className="mt-3 w-full bg-bg-tertiary rounded-full h-2">
-                            <div
-                                className="bg-primary-500 h-2 rounded-full transition-all duration-300"
-                                style={{ width: `${progress}%` }}
-                            />
-                        </div>
-                    )}
+
+                    {/* Step indicators */}
+                    <div className="space-y-2.5">
+                        {PIPELINE_STEPS.map((step) => {
+                            const state = getStepState(step.key);
+                            return (
+                                <div
+                                    key={step.key}
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-300 ${state === "active"
+                                            ? "bg-primary-600/15 border border-primary-600/30"
+                                            : state === "done"
+                                                ? "bg-green-500/10"
+                                                : "opacity-40"
+                                        }`}
+                                >
+                                    {/* Status icon */}
+                                    <div className="w-6 h-6 flex items-center justify-center shrink-0">
+                                        {state === "done" ? (
+                                            <span className="text-green-400 text-sm font-bold">✓</span>
+                                        ) : state === "active" ? (
+                                            <div className="w-4 h-4 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                            <span className="text-text-muted text-sm">{step.icon}</span>
+                                        )}
+                                    </div>
+                                    {/* Label */}
+                                    <span
+                                        className={`text-sm font-medium ${state === "active"
+                                                ? "text-primary-400"
+                                                : state === "done"
+                                                    ? "text-green-400"
+                                                    : "text-text-muted"
+                                            }`}
+                                    >
+                                        {step.label}
+                                    </span>
+                                    {/* Active detail */}
+                                    {state === "active" && stepDetail && (
+                                        <span className="text-xs text-text-muted ml-auto hidden sm:inline">
+                                            {stepDetail}
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Overall progress bar */}
+                    <div className="mt-4 w-full bg-bg-tertiary rounded-full h-2 overflow-hidden">
+                        <div
+                            className="bg-gradient-to-r from-primary-600 to-primary-400 h-2 rounded-full transition-all duration-500 ease-out"
+                            style={{ width: `${progressPercent}%` }}
+                        />
+                    </div>
+                    <p className="text-xs text-text-muted text-right mt-1">
+                        {progressPercent}%
+                    </p>
                 </div>
             )}
 

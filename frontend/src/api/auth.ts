@@ -54,4 +54,12 @@ export const authApi = {
         );
         return res.data;
     },
+
+    resendVerification: async (email: string): Promise<MessageResponse> => {
+        const res = await axios.post<MessageResponse>(
+            `${getBaseUrl()}/auth/resend-verification`,
+            { email }
+        );
+        return res.data;
+    },
 };

@@ -1,11 +1,13 @@
 from fastapi import APIRouter, UploadFile, status, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
+import asyncio
 import os
 import tempfile
 import logging
 from Helpers.Config import get_settings, settings
+from Utils.sse_helpers import progress_event, result_event, error_event
 from Controllers.PrescriptionController import PrescriptionController
 from Controllers.NLPController import NLPController
 from Models.enums.ResponsEnums import ResponseSignal
@@ -191,6 +193,191 @@ async def analyze_prescription(request: Request, file: UploadFile):
             os.unlink(tmp_file.name)
         except OSError:
             pass
+
+@prescription_router.post("/analyze-stream")
+async def analyze_prescription_stream(request: Request, file: UploadFile):
+    """
+    Upload a prescription image and stream real-time progress via SSE.
+    Each pipeline step sends a progress event, and the final result
+    is sent at the end.
+    """
+    # Validate file type
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        async def error_gen():
+            yield error_event(
+                f"Unsupported file type: {file.content_type}. "
+                f"Allowed: {', '.join(ALLOWED_IMAGE_TYPES)}"
+            )
+        return StreamingResponse(error_gen(), media_type="text/event-stream")
+
+    # Read file content BEFORE entering the generator — FastAPI closes the
+    # UploadFile after we return the StreamingResponse, so we must read eagerly.
+    content = await file.read()
+    suffix = os.path.splitext(file.filename or "upload.jpg")[-1]
+
+    async def event_generator():
+        tmp_file = None
+        try:
+            # ── Step 1: Save uploaded file ──────────────────────────
+            yield progress_event("upload", "Receiving image...", 5)
+
+            tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+            tmp_file.write(content)
+            tmp_file.flush()
+            tmp_file.close()
+
+            yield progress_event("upload", "Image received", 10)
+
+            # ── Steps 2-4: OCR pipeline (with progress callbacks) ──
+            controller = PrescriptionController()
+
+            # We use a queue to collect progress events from the controller callback
+            progress_queue = asyncio.Queue()
+
+            async def on_progress_cb(step, detail, percent):
+                await progress_queue.put(progress_event(step, detail, percent))
+
+            # Run the OCR pipeline in a background task
+            pipeline_task = asyncio.create_task(
+                controller.analyze_prescription(
+                    file_path=tmp_file.name,
+                    genration_client=request.app.genration_client,
+                    ocr_client=getattr(request.app, "ocr_client", None),
+                    on_progress=on_progress_cb,
+                )
+            )
+
+            # Drain progress events while the pipeline runs
+            while not pipeline_task.done():
+                try:
+                    event = await asyncio.wait_for(progress_queue.get(), timeout=0.3)
+                    yield event
+                except asyncio.TimeoutError:
+                    pass
+
+            # Drain any remaining events in the queue
+            while not progress_queue.empty():
+                yield await progress_queue.get()
+
+            result = pipeline_task.result()
+
+            medicines = result.get("medicines", [])
+            ocr_text = result.get("ocr_text", "")
+
+            if not medicines:
+                signal = ResponseSignal.PRESCRIPTION_NO_MEDICINES_FOUND.value
+                yield result_event({
+                    "signal": signal,
+                    "ocr_text": ocr_text,
+                    "medicines": [],
+                    "project_id": None,
+                })
+                return
+
+            # ── Step 5: Create project & index ──────────────────────
+            yield progress_event("indexing", "Saving results & indexing for chat...", 80)
+
+            project_model = await projectModel.create_instance(
+                db_client=request.app.db_client
+            )
+            new_project = await project_model.create_project(Project())
+            pid = new_project.project_id
+            logger.info("Created prescription project_id=%d", pid)
+
+            asset_model = await AssetModel.create_instance(
+                db_client=request.app.db_client
+            )
+            asset_record = await asset_model.create_asset(
+                Asset(
+                    asset_project_id=pid,
+                    asset_type=assettypeEnum.PRESCRIPTION.value,
+                    asset_name=f"prescription_{pid}",
+                    asset_size=len(content),
+                )
+            )
+            asset_id = asset_record.asset_id
+
+            chunk_records = []
+            for i, med in enumerate(medicines):
+                chunk_text = (
+                    f"Medicine: {med['name']}\n"
+                    f"Active Ingredient: {med.get('active_ingredient', 'Unknown')}\n"
+                )
+                chunk_records.append(
+                    dataChunk(
+                        chunk_text=chunk_text,
+                        chunk_metadata={
+                            "source": "prescription_ocr",
+                            "medicine_name": med["name"],
+                            "active_ingredient": med.get("active_ingredient", "Unknown"),
+                        },
+                        chunk_order=i + 1,
+                        chunk_project_id=pid,
+                        chunk_asset_id=asset_id,
+                    )
+                )
+
+            chunk_model = await ChunkModel.create_instance(
+                db_client=request.app.db_client
+            )
+            await chunk_model.insert_many_chunks(chunks=chunk_records)
+
+            yield progress_event("indexing", "Building vector index...", 90)
+
+            nlp_controller = NLPController(
+                genration_client=request.app.genration_client,
+                embedding_client=request.app.embedding_client,
+                vectordb_client=request.app.vectordb_client,
+                template_parser=request.app.template_parser,
+            )
+
+            db_chunks = await chunk_model.get_project_chunks(
+                project_id=pid, page_no=1, page_size=500
+            )
+
+            if db_chunks:
+                chunks_ids = [c.chunk_id for c in db_chunks]
+                is_inserted, error_msg = await nlp_controller.index_into_vector_db(
+                    project=new_project, chunks=db_chunks, chunks_ids=chunks_ids,
+                    do_reset=True,
+                )
+                if not is_inserted:
+                    logger.error("Failed to index prescription chunks: %s", error_msg)
+                else:
+                    logger.info(
+                        "Indexed %d prescription chunks into project %d",
+                        len(db_chunks), pid,
+                    )
+
+            yield progress_event("complete", "Analysis complete!", 100)
+            yield result_event({
+                "signal": ResponseSignal.PRESCRIPTION_ANALYZED.value,
+                "ocr_text": ocr_text,
+                "medicines": medicines,
+                "project_id": pid,
+            })
+
+        except Exception as e:
+            logger.error("Error in analyze-stream: %s", e, exc_info=True)
+            yield error_event(str(e))
+
+        finally:
+            if tmp_file:
+                try:
+                    os.unlink(tmp_file.name)
+                except OSError:
+                    pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
 
 
 @prescription_router.post("/chat")
