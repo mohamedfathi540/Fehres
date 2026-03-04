@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y \
 COPY SRC/requirements.txt .
 
 ENV UV_HTTP_TIMEOUT=120
-RUN uv pip install -r requirements.txt --system
+RUN uv add -r requirements.txt --system
 
 COPY SRC/ .
 
