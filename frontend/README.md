@@ -1,104 +1,160 @@
-# Tashfeer Frontend
+<![CDATA[# Tashfeer Frontend
 
-A modern, accessible React SPA for the Tashfeer RAG (Retrieval-Augmented Generation) system.
+> A modern, accessible React SPA for the Tashfeer platform — prescription analysis, RAG-powered document Q&A, and semantic search.
 
-## Features
+---
 
-- **Chat Interface**: RAG Q&A with AI-generated answers
-- **Upload & Process**: File upload, chunking, and indexing workflow
-- **Semantic Search**: Natural language search on indexed documents
-- **Index Info**: Vector database statistics dashboard
-- **Settings**: API configuration and preferences
+## ✨ Features
 
-## Tech Stack
+| Page | Description |
+|------|-------------|
+| **Prescription Analysis** | Upload prescription images, get real-time OCR analysis with medicine matching via SSE progress streaming |
+| **Chat** | RAG Q&A — ask questions and get AI-generated answers grounded in your indexed documents |
+| **Search** | Semantic search across all indexed documents with relevance scoring |
+| **Upload & Process** | Upload documents (PDF, TXT, MD, JSON, CSV, DOCX), configure chunking parameters, and index to vector DB |
+| **Login / Register** | JWT-based authentication with email verification |
+| **Settings** | Configure API URL and application preferences |
 
-- React 18 + TypeScript
-- Vite (build tool)
-- React Aria Components (accessible UI primitives)
-- Tailwind CSS (styling)
-- TanStack Query (server state management)
-- Zustand (client state management)
-- React Router (SPA routing)
+---
 
-## Getting Started
+## 🛠️ Tech Stack
+
+| Technology | Purpose |
+|------------|---------|
+| **React 18** | Component library with hooks |
+| **TypeScript** | Type-safe codebase |
+| **Vite** | Fast build tool with HMR |
+| **Tailwind CSS** | Utility-first styling |
+| **React Router v6** | Client-side routing with protected routes |
+| **TanStack Query** | Server state management and caching |
+| **Zustand** | Client state management (auth, settings) |
+| **React Aria Components** | Accessible UI primitives (WAI-ARIA compliant) |
+| **Heroicons** | SVG icon library |
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
+- **Node.js** 18+ and **pnpm**
+- Running Tashfeer API backend (see [root README](../README.md))
 
-- Node.js 18+ or pnpm
-- Running Tashfeer API backend
-
-### Installation
+### Quick Start
 
 ```bash
 # Install dependencies
 pnpm install
 
 # Start development server
-pnpm run dev
+pnpm dev
 ```
 
-The development server will start at `http://localhost:5777`.
+The dev server runs at **http://localhost:5777** with hot module replacement.
+
+> **Tip:** Use `bash dev.sh` from the project root to start both backend and frontend simultaneously.
 
 ### Environment Variables
 
-Copy `.env.example` to `.env` and configure as needed:
+Create a `.env` file (optional — defaults work for local development):
 
-```bash
-cp .env.example .env
-```
-
-| Variable       | Description         | Default                        |
-| -------------- | ------------------- | ------------------------------ |
+| Variable | Description | Default |
+|----------|-------------|---------|
 | `VITE_API_URL` | Tashfeer API base URL | `http://localhost:8000/api/v1` |
 
-### Building for Production
+### Build for Production
 
 ```bash
 pnpm build
 ```
 
-The built files will be in the `dist/` directory.
+Output is generated in the `dist/` directory, ready to be served by Nginx or any static file server.
 
 ### Docker
-
-Build and run with Docker:
 
 ```bash
 docker build -t tashfeer-frontend .
 docker run -p 80:80 tashfeer-frontend
 ```
 
-## Project Structure
+---
+
+## 📁 Project Structure
 
 ```
 frontend/
 ├── src/
-│   ├── api/          # API clients and types
-│   ├── components/   # React components
-│   │   ├── ui/       # Base UI components
-│   │   ├── layout/   # Layout components
-│   │   └── features/ # Feature-specific components
-│   ├── pages/        # Page components
-│   ├── stores/       # Zustand stores
-│   └── utils/        # Utility functions
-├── public/           # Static assets
-└── ...
+│   ├── api/                # API client modules
+│   │   ├── base.ts         # Health check and base client config
+│   │   ├── data.ts         # File upload, processing, asset management
+│   │   ├── nlp.ts          # Vector search, indexing, RAG Q&A
+│   │   ├── prescription.ts # OCR analysis with SSE streaming
+│   │   └── auth.ts         # Login, register, email verification
+│   ├── components/
+│   │   ├── ui/             # Reusable UI primitives (Button, StatusBadge, Card, etc.)
+│   │   ├── layout/         # App layout (Sidebar with mobile responsiveness)
+│   │   └── features/       # Feature-specific components
+│   ├── pages/
+│   │   ├── PrescriptionPage.tsx   # OCR analysis with real-time progress bar
+│   │   ├── ChatPage.tsx           # RAG document Q&A
+│   │   ├── SearchPage.tsx         # Semantic search
+│   │   ├── UploadPage.tsx         # Document upload & processing workflow
+│   │   ├── IndexInfoPage.tsx      # Vector DB statistics dashboard
+│   │   ├── LoginPage.tsx          # User authentication
+│   │   ├── RegisterPage.tsx       # Account creation
+│   │   ├── VerifyEmailPage.tsx    # Email verification flow
+│   │   ├── LearningAssistantChatPage.tsx  # AI learning assistant
+│   │   ├── LearningBooksAdminPage.tsx     # Learning corpus management
+│   │   └── SettingsPage.tsx       # Application settings
+│   ├── stores/
+│   │   ├── authStore.ts    # JWT token + user state (persisted)
+│   │   └── settingsStore.ts # API URL + preferences (persisted)
+│   └── utils/              # Shared utility functions
+├── public/                 # Static assets
+├── index.html              # App shell
+├── vite.config.ts          # Vite configuration
+├── tailwind.config.js      # Tailwind CSS theme
+└── tsconfig.json           # TypeScript configuration
 ```
 
-## API Integration
+---
 
-The frontend communicates with the Tashfeer API at `http://localhost:8000/api/v1` by default. This can be changed in the Settings page.
+## 🔌 API Integration
 
-Available endpoints:
+The frontend communicates with the Tashfeer API. All data routes require JWT authentication.
 
-- `GET /` - Health check
-- `POST /data/upload/{project_id}` - Upload files
-- `POST /data/process/{project_id}` - Process files into chunks
-- `POST /nlp/index/push/{project_id}` - Push chunks to vector DB
-- `GET /nlp/index/info/{project_id}` - Get index info
-- `POST /nlp/index/search/{project_id}` - Semantic search
-- `POST /nlp/index/answer/{project_id}` - RAG Q&A
+### Authentication Flow
+```
+Register → Verify Email → Login → Store JWT → Attach to all API requests
+```
 
-## License
+### Core API Endpoints
 
-Same as the main Tashfeer project.
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| `GET` | `/` | Health check | ❌ |
+| `POST` | `/auth/register` | Create account | ❌ |
+| `POST` | `/auth/login` | Get JWT token | ❌ |
+| `GET` | `/auth/verify-email` | Verify email address | ❌ |
+| `POST` | `/data/upload/{project_id}` | Upload files | ✅ |
+| `POST` | `/data/process/{project_id}` | Process into chunks | ✅ |
+| `POST` | `/nlp/index/push/{project_id}` | Index to vector DB | ✅ |
+| `GET` | `/nlp/index/info/{project_id}` | Get index statistics | ✅ |
+| `POST` | `/nlp/index/search/{project_id}` | Semantic search | ✅ |
+| `POST` | `/nlp/index/answer/{project_id}` | RAG Q&A | ✅ |
+| `POST` | `/prescription/analyze` | Analyze prescription (SSE) | ✅ |
+
+---
+
+## 📱 Responsive Design
+
+The frontend is fully responsive with:
+- **Mobile sidebar**: Hamburger menu with backdrop overlay
+- **Adaptive layouts**: Components reflow for small screens
+- **Touch-friendly**: Appropriately sized tap targets
+
+---
+
+## 📝 License
+
+Same as the main Tashfeer project — Apache License 2.0.
+]]>

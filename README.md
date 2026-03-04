@@ -1,362 +1,405 @@
-# Tashfeer
+<![CDATA[# Tashfeer
 
-A Retrieval-Augmented Generation (RAG) system for document-based question answering. Upload documents, process them into searchable chunks, and get AI-generated answers based on your content.
+> **AI-Powered Prescription Analyzer & RAG System** — Upload prescriptions, get instant medicine analysis with real alternatives from the Egyptian Drug Authority (EDA), and ask questions about your documents using Retrieval-Augmented Generation.
 
-## Features
+---
 
-- **Modern React Frontend**: Accessible SPA built with React 18, TypeScript, and React Aria Components
-- **Learning Assistant**: Dedicated AI assistant for AI/Data Science references corpus
-- **Multi-format Document Support**: PDF, TXT, Markdown, JSON, CSV, DOCX
-- **Multiple LLM Providers**: OpenAI, Google Gemini, Cohere
-- **Vector Database Options**: PostgreSQL with pgvector, Qdrant
-- **RESTful API**: FastAPI backend with OpenAPI documentation
-- **Monitoring**: Prometheus metrics and Grafana dashboards
-- **Docker Ready**: Full containerized deployment with Docker Compose
+## ✨ Key Features
 
-## Architecture
+### 🔬 Prescription Analysis (OCR → AI)
+- **Multi-provider OCR**: Supports Gemini Vision, OpenAI Vision, EasyOCR, and LlamaParse
+- **Intelligent medicine extraction**: Algorithmic fallback when LLM extraction fails
+- **Real-time progress**: Server-Sent Events (SSE) stream each pipeline step to the UI
+- **EDA medicine matching**: Fuzzy-matches extracted medicines against the Egyptian Drug Authority database and suggests real alternatives
+- **End-to-end pipeline**: OCR → Extraction → Enrichment → Database Matching → Response
+
+### 📄 RAG Document Q&A
+- **Multi-format ingestion**: PDF, TXT, Markdown, JSON, CSV, DOCX
+- **Hybrid search**: Dense vector search + BM25 sparse retrieval with configurable alpha blending
+- **Multiple LLM providers**: OpenAI, Google Gemini, Cohere, HuggingFace, and Ollama (local)
+- **Multiple vector databases**: PostgreSQL with pgvector or Qdrant
+- **Semantic search**: Natural language queries across indexed documents
+
+### 🔐 Security & Auth
+- **JWT authentication**: Secure login/register with token-based access control
+- **Email verification**: Brevo (Sendinblue) integration for account verification
+- **Prompt injection guard**: Detects and blocks injection attempts in user queries
+- **Content filtering**: Output leakage prevention for sensitive data
+- **Rate limiting**: Per-IP rate limiting via SlowAPI
+
+### 📊 Monitoring & Observability
+- **Prometheus metrics**: Custom application metrics with auto-instrumented endpoints
+- **Grafana dashboards**: Pre-configured visualization for system health
+- **Node Exporter**: Hardware and OS metrics from the host machine
+- **PostgreSQL Exporter**: Database-level performance metrics
+
+---
+
+## 🏗️ Architecture
 
 ```mermaid
 flowchart TB
     subgraph Frontend["Frontend Layer"]
-        React[React SPA<br/>Primary UI]
-        Streamlit[Streamlit<br/>Testing/Legacy]
+        React["React 18 SPA<br/>TypeScript + Tailwind"]
     end
 
     subgraph Proxy["Reverse Proxy"]
         Nginx[Nginx]
     end
 
-    subgraph Backend["Backend Services"]
-        FastAPI[FastAPI Application]
-        Routes[API Routes]
-        Controllers[Controllers]
-        Models[Models]
+    subgraph Backend["Backend — FastAPI"]
+        Auth["Auth Routes<br/>JWT + Email Verify"]
+        DataRoutes["Data Routes<br/>Upload / Process"]
+        NLPRoutes["NLP Routes<br/>Index / Search / Answer"]
+        PrescriptionRoutes["Prescription Routes<br/>OCR + Medicine Matching"]
+    end
+
+    subgraph Controllers["Business Logic"]
+        NLPCtrl["NLP Controller<br/>RAG Pipeline"]
+        PrescCtrl["Prescription Controller<br/>OCR Pipeline + SSE"]
+        ProcessCtrl["Process Controller<br/>Chunking Engine"]
     end
 
     subgraph Data["Data Layer"]
-        PostgreSQL[(PostgreSQL<br/>pgvector)]
-        Qdrant[(Qdrant<br/>Optional)]
+        PostgreSQL[("PostgreSQL<br/>pgvector")]
+        Qdrant[("Qdrant<br/>Vector DB")]
     end
 
     subgraph External["External Services"]
-        LLM[LLM Providers<br/>OpenAI/Gemini/Cohere]
-        Embeddings[Embedding Service]
+        LLM["LLM Providers<br/>OpenAI / Gemini / Cohere<br/>HuggingFace / Ollama"]
+        OCR["OCR Providers<br/>Gemini Vision / OpenAI Vision<br/>EasyOCR / LlamaParse"]
+        EDA["EDA Medicine DB<br/>Local CSV"]
+        Brevo["Brevo<br/>Email Service"]
     end
 
-    subgraph Monitoring["Monitoring"]
+    subgraph Monitoring["Monitoring Stack"]
         Prometheus[Prometheus]
         Grafana[Grafana]
     end
 
     React --> Nginx
-    Streamlit --> Nginx
-    Nginx --> FastAPI
-    FastAPI --> Routes
-    Routes --> Controllers
-    Controllers --> Models
-    Models --> PostgreSQL
-    Models --> Qdrant
-    Controllers --> LLM
-    Controllers --> Embeddings
-    FastAPI --> Prometheus
+    Nginx --> Backend
+    Auth --> Brevo
+    DataRoutes --> ProcessCtrl
+    NLPRoutes --> NLPCtrl
+    PrescriptionRoutes --> PrescCtrl
+    NLPCtrl --> LLM
+    NLPCtrl --> Data
+    PrescCtrl --> OCR
+    PrescCtrl --> EDA
+    ProcessCtrl --> Data
+    Backend --> Prometheus
     Prometheus --> Grafana
 ```
 
-## Quick Start
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- Python 3.11.14+
-- [uv](https://github.com/astral-sh/uv) (recommended) or pip
-- Docker and Docker Compose (for containerized deployment)
+| Tool | Version | Purpose |
+|------|---------|---------|
+| **Python** | 3.11+ | Backend runtime |
+| **Node.js** | 18+ | Frontend build |
+| **pnpm** | latest | Frontend package manager |
+| **Docker** | 20+ | Database containers |
+| **uv** | latest | Python dependency management (recommended) |
 
-### Local Development
+### Option A: Hybrid Development (Recommended)
 
-#### 1. Clone the repository
+> Docker runs only the databases. Backend and frontend run locally for fast iteration with hot-reload.
+
+#### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/mohamedfathi540/tashfeer.git
 cd tashfeer
 ```
 
-#### 2. Set up Backend
+#### 2. Configure Environment
 
 ```bash
 cd SRC
 cp .env.example .env
-# Edit .env with your API keys and database credentials
 ```
 
-Install dependencies:
+Open `.env` and configure your API keys and preferences:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `GENRATION_BACKEND` | LLM provider | `OPENAI`, `GEMINI`, `COHERE`, `HUGGINGFACE`, `OLLAMA` |
+| `EMBEDDING_BACKEND` | Embedding provider | `GEMINI`, `HUGGINGFACE`, `OPENAI` |
+| `OCR_BACKEND` | Prescription OCR provider | `GEMINI`, `OPENAI`, `EASYOCR`, `LLAMAPARSE` |
+| `VECTORDB_BACKEND` | Vector database | `PGVECTOR`, `QDRANT` |
+| `JWT_SECRET` | Token signing key | Generate with `python3 -c "import secrets; print(secrets.token_hex(32))"` |
+| `BREVO_API_KEY` | Email verification API key | Get from [Brevo Dashboard](https://app.brevo.com) |
+
+> **⚠️ Important:** Change `JWT_SECRET` from the default value before deploying to production.
+
+#### 3. Start Everything with One Command
 
 ```bash
-uv sync
-# or: pip install -r requirements.txt
+cd ..   # Return to project root
+bash dev.sh
 ```
 
-Run database migrations:
+This script will:
+1. 🐳 Start **PostgreSQL (pgvector)** and **Qdrant** via Docker
+2. ⏳ Wait for databases to become healthy
+3. 🐍 Launch the **FastAPI backend** with hot-reload on port `8000`
+4. ⚛️ Launch the **Vite frontend** with HMR on port `5777`
+5. 📋 Tail all logs in your terminal
 
+**To stop everything:**
 ```bash
-uv run python -m alembic upgrade head
+# Press Ctrl+C in the running terminal
+# OR run:
+bash dev-stop.sh
 ```
 
-Start the server:
+#### 4. Access the Application
 
-```bash
-uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
+| Service | URL |
+|---------|-----|
+| **Frontend** | http://localhost:5777 |
+| **API Docs** | http://localhost:8000/docs |
+| **PostgreSQL** | `localhost:5433` |
+| **Qdrant Dashboard** | http://localhost:6333/dashboard |
 
-#### 3. Set up Frontend (Optional - for React UI)
+---
 
-```bash
-cd frontend
-pnpm install
-pnpm run dev
-```
+### Option B: Full Docker Deployment (Production)
 
-The React frontend will be available at `http://localhost:5173`.
-
-#### 4. Access the Services
-
-- **React Frontend**: http://localhost:5173
-- **API Documentation**: http://localhost:8000/docs
-
-### Docker Deployment
+> Everything runs inside Docker containers, including Nginx reverse proxy and monitoring.
 
 ```bash
 cd Docker
-docker compose up -d
+# Configure environment files in Docker/env/
+docker compose up -d --build
 ```
 
-Services will be available at:
+| Service | URL |
+|---------|-----|
+| **Application** | http://localhost (via Nginx) |
+| **API** | http://localhost:8000 |
+| **Grafana** | http://localhost:3000 |
+| **Prometheus** | http://localhost:9090 |
 
-- **React Frontend**: http://localhost (via Nginx)
-- **API**: http://localhost:8000
-- **Grafana**: http://localhost:3000
-- **Prometheus**: http://localhost:9090
+See [Docker/README.md](Docker/README.md) for detailed configuration.
 
-See [Docker/README.md](Docker/README.md) for detailed Docker configuration.
+---
 
-## Usage
+## 📖 System Workflow
 
-### React Frontend (Recommended)
+### 1. User Registration & Login
 
-The modern React SPA provides an intuitive interface for all operations:
+```
+Register → Email Verification (Brevo) → Login → JWT Token → Access Protected Routes
+```
 
-1. **Chat**: RAG Q&A with AI-generated answers based on your documents
-2. **Upload & Process**: Upload documents, configure chunking, and process files
-3. **Search**: Semantic search across indexed documents
-4. **Index Info**: View vector database statistics
-5. **Settings**: Configure API URL, project ID, and theme preferences
+### 2. Prescription Analysis Pipeline
 
-**Learning Assistant**: A dedicated interface for the AI/Data Science reference corpus. Ask questions about maths, statistics, coding, ML, DL, GenAI, and System Design.
+```
+Upload Image → OCR (Vision AI) → Extract Medicines → Match EDA Database → Return Alternatives
+```
 
-### API Endpoints
+Each step streams real-time progress via SSE:
 
-1. **Upload** a document via `POST /api/v1/data/upload/{project_id}`
-2. **Process** the document into chunks via `POST /api/v1/data/process/{project_id}`
-3. **Index** chunks to the vector database via `POST /api/v1/nlp/index/push/{project_id}`
-4. **Ask** questions via `POST /api/v1/nlp/index/answer/{project_id}`
+| Step | Description |
+|------|-------------|
+| **OCR** | Extracts raw text from the prescription image using the configured vision provider |
+| **Extraction** | Identifies medicine names, dosages, and instructions from the raw OCR text |
+| **Enrichment** | Cross-references extracted medicines with the EDA database (~40,000+ products) |
+| **Response** | Returns structured results with real alternatives and pricing |
 
+### 3. RAG Document Pipeline
 
-For full API documentation, see [API.md](API.md).
+```
+Upload Document → Process (Chunk) → Generate Embeddings → Index in Vector DB → Query
+```
 
-## Project Structure
+| Step | Endpoint | Description |
+|------|----------|-------------|
+| **Upload** | `POST /api/v1/data/upload/{project_id}` | Upload PDF, TXT, MD, JSON, CSV, or DOCX |
+| **Process** | `POST /api/v1/data/process/{project_id}` | Split into configurable chunks |
+| **Index** | `POST /api/v1/nlp/index/push/{project_id}` | Embed and store in vector database |
+| **Search** | `POST /api/v1/nlp/index/search/{project_id}` | Semantic similarity search |
+| **Answer** | `POST /api/v1/nlp/index/answer/{project_id}` | RAG-powered Q&A with context |
+
+### 4. Medicine Database Update
+
+Update the local EDA medicine database:
+
+```bash
+uv run python3 SRC/scripts/scrape_eda.py
+```
+1. Solve the CAPTCHA shown in `captcha.jpg`
+2. Results saved to `SRC/Assets/Files/eda_medicines.csv`
+
+---
+
+## 📁 Project Structure
 
 ```
 tashfeer/
-├── SRC/                    # Backend - FastAPI application
-│   ├── main.py             # Application entry point
-│   ├── Routes/             # API endpoint definitions
-│   ├── Controllers/        # Business logic
-│   ├── Models/             # Data models and database schemas
-│   ├── Stores/             # LLM and VectorDB integrations
-│   └── Helpers/            # Configuration and utilities
-├── frontend/               # React SPA frontend
+├── SRC/                          # Backend — FastAPI Application
+│   ├── main.py                   # App entry point, middleware, router setup
+│   ├── Routes/                   # API endpoint definitions
+│   │   ├── Auth.py               # Register, login, email verification
+│   │   ├── Data.py               # File upload, processing, asset management
+│   │   ├── NLP.py                # Vector indexing, search, RAG Q&A
+│   │   └── Prescription.py       # OCR analysis with SSE streaming
+│   ├── Controllers/              # Business logic layer
+│   │   ├── NLPController.py      # RAG pipeline + hybrid search
+│   │   ├── PrescriptionController.py  # OCR pipeline + medicine matching
+│   │   └── ProcessController.py  # Document chunking engine
+│   ├── Stores/                   # External service integrations
+│   │   ├── LLM/                  # LLM providers (OpenAI, Gemini, Cohere, HuggingFace)
+│   │   ├── VectorDB/             # Vector DB providers (pgvector, Qdrant)
+│   │   └── Sparse/               # BM25 sparse retrieval
+│   ├── Utils/                    # Utilities
+│   │   ├── security.py           # JWT auth + password hashing
+│   │   ├── PromptGuard.py        # Prompt injection detection
+│   │   ├── ContentFilter.py      # Output leakage prevention
+│   │   ├── MedicineMatcher.py    # Fuzzy medicine matching against EDA DB
+│   │   ├── email_service.py      # Brevo email verification
+│   │   └── metrics.py            # Prometheus metrics setup
+│   ├── Models/                   # SQLAlchemy models + Alembic migrations
+│   ├── scripts/                  # Utility scripts
+│   │   ├── scrape_eda.py         # EDA medicine database scraper
+│   │   └── process_embeddings.py # Batch embedding processor
+│   └── .env.example              # Environment template
+│
+├── frontend/                     # Frontend — React SPA
 │   ├── src/
-│   │   ├── api/            # API clients and types
-│   │   ├── components/     # UI components (ui, layout, features)
-│   │   ├── pages/          # Page components
-│   │   └── stores/         # Zustand state management
-│   └── ...                 # Config files (vite, tsconfig, etc.)
-├── Docker/                 # Docker configuration
-├── streamlit_app/          # Testing frontend (legacy)
-├── API.md                  # API reference
-├── TESTING.md              # Testing documentation
-└── README.md
+│   │   ├── pages/                # Application pages
+│   │   │   ├── PrescriptionPage  # OCR analysis with progress streaming
+│   │   │   ├── ChatPage          # RAG Q&A interface
+│   │   │   ├── SearchPage        # Semantic search
+│   │   │   ├── UploadPage        # Document upload & processing
+│   │   │   ├── LoginPage         # Authentication
+│   │   │   ├── RegisterPage      # User registration
+│   │   │   └── VerifyEmailPage   # Email verification
+│   │   ├── components/           # Reusable UI components
+│   │   ├── stores/               # Zustand state (auth, settings)
+│   │   └── api/                  # API client layer
+│   └── index.html                # App shell
+│
+├── Docker/                       # Docker deployment
+│   ├── docker-compose.yml        # Full production stack
+│   ├── docker-compose.dev.yml    # Dev-only (databases)
+│   ├── Nginx/                    # Reverse proxy config
+│   ├── Prometheus/               # Metrics scraping config
+│   └── env/                      # Container environment files
+│
+├── dev.sh                        # 🚀 One-command dev environment launcher
+├── dev-stop.sh                   # 🛑 Graceful shutdown script
+├── API.md                        # Complete API reference
+└── project_workflow.md           # System workflow diagrams
 ```
 
-## Configuration
+---
 
-Key environment variables (see `.env.example` for full list):
+## ⚙️ Configuration Reference
 
-| Variable            | Description                                   |
-| ------------------- | --------------------------------------------- |
-| `GENRATION_BACKEND` | LLM provider: `OPENAI`, `GEMINI`, or `COHERE` |
-| `EMBEDDING_BACKEND` | Embedding provider                            |
-| `VECTORDB_BACKEND`  | Vector DB: `PGVECTOR` or `QDRANT`             |
-| `POSTGRES_*`        | PostgreSQL connection settings                |
-| `*_API_KEY`         | API keys for LLM providers                    |
+### LLM Providers
 
-## Tech Stack
+| Provider | Backend Value | API Key Variable | Notes |
+|----------|---------------|------------------|-------|
+| OpenAI | `OPENAI` | `OPENAI_API_KEY` | Also supports OpenRouter via `OPENAI_BASE_URL` |
+| Google Gemini | `GEMINI` | `GEMINI_API_KEY` | Recommended for OCR |
+| Cohere | `COHERE` | `COHERE_API_KEY` | Supports Command R+ |
+| HuggingFace | `HUGGINGFACE` | `HUGGINGFACE_API_KEY` | Free tier available |
+| Ollama | `OPENAI` | Set `OPENAI_API_KEY=ollama` | Local models via custom `OPENAI_BASE_URL` |
 
-### Backend
+### OCR Providers
 
-- **FastAPI** - Modern, fast web framework for building APIs
-- **PostgreSQL with pgvector** / **Qdrant** - Vector databases
-- **Alembic** - Database migrations
+| Provider | Backend Value | Requires | Best For |
+|----------|---------------|----------|----------|
+| Google Gemini Vision | `GEMINI` | `GEMINI_API_KEY` | Handwritten prescriptions |
+| OpenAI Vision | `OPENAI` | `OPENAI_API_KEY` | General document OCR |
+| EasyOCR | `EASYOCR` | Nothing (local) | Offline/privacy-first |
+| LlamaParse | `LLAMAPARSE` | API key | Structured documents |
 
-### Frontend
+### Vector Database Options
 
-- **React 18** - UI library with hooks
-- **TypeScript** - Type safety
-- **Vite** - Fast build tool and dev server
-- **React Router v6** - Client-side routing
-- **TanStack Query** - Server state management
-- **Zustand** - Client state management
-- **React Aria Components** - Accessible UI primitives
-- **Tailwind CSS** - Utility-first styling
+| Database | Backend Value | Default Port | Notes |
+|----------|---------------|--------------|-------|
+| PostgreSQL + pgvector | `PGVECTOR` | 5433 | Recommended — uses existing PostgreSQL |
+| Qdrant | `QDRANT` | 6333 | High-performance, standalone vector DB |
 
-### DevOps & Monitoring
+---
 
-- **Docker & Docker Compose** - Containerization
-- **Nginx** - Reverse proxy
-- **Prometheus** - Metrics collection
-- **Grafana** - Visualization dashboards
+## 🌐 Self-Hosting Guide
 
-## Testing
+Turn any computer into a professional Tashfeer server using Cloudflare Tunnel.
 
-### Verify Server
+### Phase 1: Hardware & OS
 
-```bash
-uv run python verify.py
-```
+- **Hardware**: Any computer with 4GB+ RAM (old laptop recommended for built-in UPS)
+- **Connection**: Ethernet cable for stability
+- **OS**: Ubuntu Server 24.04 LTS (enable OpenSSH during installation)
 
-### React Frontend
+### Phase 2: Install & Deploy
 
 ```bash
-cd frontend
-pnpm install
-pnpm run dev
-```
+# SSH into your server
+ssh your_username@local_ip
 
-Access the React frontend at `http://localhost:5173`.
-
-### Streamlit UI (Legacy)
-
-```bash
-cd streamlit_app
-pip install -r requirements.txt
-streamlit run app.py
-```
-
-See [streamlit_app/README.md](streamlit_app/README.md) for more details.
-
-See [TESTING.md](TESTING.md) for comprehensive testing documentation.
-
-## License
-
-Apache License 2.0 - see [LICENCE](LICENCE) for details.
-
-## Self-Hosting Guide
-
-Turn an old computer into a professional server for your "Tashfeer" project using **Self-Hosting**. This setup bypasses home network restrictions using Cloudflare Tunnel.
-
-### Phase 1: The Hardware & OS
-
-**Hardware Requirements:**
-- **Computer**: An old laptop (recommended for built-in battery/UPS) or desktop PC.
-- **RAM**: 4GB minimum.
-- **Connection**: Connect via Ethernet cable for stability.
-
-**OS Installation:**
-1. Download **Ubuntu Server 24.04 LTS**.
-2. Flash it to a USB stick (using Rufus or BalenaEtcher).
-3. Install on your computer. **Important**: Check the box "Install OpenSSH Server" during installation.
-
-### Phase 2: Install Project
-
-Login via SSH: `ssh your_username@local_ip`
-
-**1. Install Docker Engine**
-
-```bash
-# Add Docker's official GPG key:
+# Install Docker
 sudo apt-get update
 sudo apt-get install ca-certificates curl
 sudo install -m 0755 -d /etc/apt/keyrings
 sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 sudo chmod a+r /etc/apt/keyrings/docker.asc
 
-# Add the repository to Apt sources:
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
   $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 sudo apt-get update
-
-# Install Docker
 sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-```
 
-**2. Clone and Configure**
-
-```bash
+# Clone and start
 git clone https://github.com/mohamedfathi540/tashfeer.git
 cd tashfeer/Docker
-
-# Create your .env files (ensure detailed configuration)
-# START THE APP
+# Configure your .env files in Docker/env/
 docker compose up -d --build
 ```
 
-> **Note**: Ensure you are using the updated Nginx configuration to correctly serve both Frontend and API.
-
-### Phase 3: Expose to the Internet (Cloudflare Tunnel)
-
-Bypass dynamic IPs and blocked ports using a secure tunnel.
-
-**1. Install cloudflared**
+### Phase 3: Expose via Cloudflare Tunnel
 
 ```bash
+# Install cloudflared
 curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
 sudo dpkg -i cloudflared.deb
-```
 
-**2. Start a Temporary Tunnel**
-
-```bash
+# Quick test (temporary URL)
 cloudflared tunnel --url http://localhost:80
-```
-This will print a random public URL (e.g., `https://random-name.trycloudflare.com`). Test this link to see your project.
 
-**3. Make it Permanent (Production)**
-- Sign up for a free Cloudflare account.
-- Go to **Zero Trust Dashboard > Networks > Tunnels**.
-- Create a Tunnel and follow instructions to install the connector.
-- **Configure Public Hostname**:
-  - Public Hostname: `tashfeer.yourdomain.com`
-  - Service: `HTTP -> localhost:80`
+# For permanent setup:
+# 1. Create Cloudflare account → Zero Trust → Tunnels
+# 2. Public Hostname: tashfeer.yourdomain.com → HTTP → localhost:80
+```
 
 ### Troubleshooting
 
-**Error: "Cannot connect to the Docker daemon"**
-If `docker compose up` fails with this error, try these fixes:
+| Issue | Solution |
+|-------|----------|
+| Cannot connect to Docker daemon | `docker context use default` or `sudo systemctl start docker` |
+| Server restarts after power outage | Configure BIOS → "Power On After Power Failure" |
 
-**Solution 1: Switch Context (Most Common Fix)**
-```bash
-docker context use default
-```
+---
 
-**Solution 2: Start Docker Service**
-```bash
-sudo systemctl start docker
-sudo systemctl enable docker
-```
+## 📚 Additional Documentation
 
-**Warning: Electricity & Data**
-- **Electricity**: Configure BIOS to "Power On After Power Failure".
-- **Data Usage**: Hosting AI models and files consumes quota. Monitor your internet usage.
+- **[API Reference](API.md)** — Complete REST API documentation
+- **[System Workflow](project_workflow.md)** — Detailed pipeline diagrams
+- **[Docker Guide](Docker/README.md)** — Container configuration and management
+- **[Frontend Guide](frontend/README.md)** — React SPA setup and structure
 
+## 📝 License
 
-
+Apache License 2.0 — see [LICENCE](LICENCE) for details.
+]]>

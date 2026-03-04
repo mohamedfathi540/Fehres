@@ -1,224 +1,214 @@
-# Docker Configuration README
+<![CDATA[# Tashfeer — Docker Deployment
 
-This directory contains the Docker configurations for deploying the project's microservices architecture. The setup uses Docker Compose to orchestrate multiple services including the main FastAPI application, databases, and monitoring tools.
+> Complete containerized deployment with application server, databases, reverse proxy, and monitoring stack.
 
-## Prerequisites
+---
 
-- [Docker](https://docs.docker.com/get-docker/) installed.
-- [Docker Compose](https://docs.docker.com/compose/install/) installed.
+## 📋 Prerequisites
 
-## Services Overview
+- [Docker](https://docs.docker.com/get-docker/) 20+
+- [Docker Compose](https://docs.docker.com/compose/install/) v2+
 
-The `docker-compose.yml` defines the following services:
+---
 
-### Application & Proxy
-- **`fastapi`**: The core application server running the FastAPI app.
-  - **Build Context**: Project root (`..`).
-  - **Dockerfile**: `docker/minirag/Dockerfile`.
-  - **Port**: `8000`.
-  - **Dependencies**: Waits for `pgvector` to be healthy.
-- **`nginx`**: A reverse proxy serving as the entry point.
-  - **Port**: `80` (mapped to host).
-  - **Configuration**: `Nginx/Default.conf`.
-  - **Routing**: Proxies requests to `fastapi`.
+## 🏗️ Architecture Overview
 
-### Databases
-- **`pgvector`**: PostgreSQL 17 extended with `pgvector` for vector similarity search.
-  - **Image**: `pgvector/pgvector:0.8.0-pg17`.
-  - **Port**: `5433` (Host) -> `5432` (Container).
-  - **Data Persistence**: Named volume `pgvector`.
-  - **Healthcheck**: Checks if Postgres is ready.
-- **`qdrant`**: A high-performance vector database.
-  - **Image**: `qdrant/qdrant:latest`.
-  - **Ports**: `6333` (API), `6334` (Internal).
-  - **Data Persistence**: Named volume `qdrant_data`.
+### Production Stack (`docker-compose.yml`)
 
-### Monitoring & Observability
-- **`prometheus`**: Collects and stores metrics.
-  - **Port**: `9090`.
-  - **Configuration**: `Prometheus/prometheus.yml`.
-  - **Data Persistence**: Named volume `prometheus_data`.
-- **`grafana`**: Visualization dashboard for Prometheus metrics.
-  - **Port**: `3000`.
-  - **Dependencies**: `prometheus`.
-  - **Data Persistence**: Named volume `grafana_data`.
-- **`node_exporter`**: Exports hardware and OS metrics exposed by *NIX kernels.
-  - **Port**: `9100`.
-  - **Mounts**: Read-only mounts of host `/proc`, `/sys`, and `/` to gather system metrics.
-- **`postgres_exporter`**: Exports PostgreSQL metrics.
-  - **Port**: `9187`.
-  - **Dependencies**: `pgvector`.
+| Service | Image | Port | Purpose |
+|---------|-------|------|---------|
+| **fastapi** | Custom build | `8000` | FastAPI application server |
+| **nginx** | nginx:latest | `80` | Reverse proxy (routes to frontend + API) |
+| **pgvector** | pgvector/pgvector:0.8.0-pg17 | `5433` | PostgreSQL with vector similarity search |
+| **qdrant** | qdrant/qdrant:latest | `6333`, `6334` | Vector database (alternative to pgvector) |
+| **prometheus** | prom/prometheus | `9090` | Metrics collection |
+| **grafana** | grafana/grafana | `3000` | Monitoring dashboards |
+| **node_exporter** | prom/node-exporter | `9100` | Host hardware/OS metrics |
+| **postgres_exporter** | prometheuscommunity/postgres-exporter | `9187` | PostgreSQL performance metrics |
 
-## Configuration Details
+### Development Stack (`docker-compose.dev.yml`)
 
-### Environment Variables
-Environment variables are loaded from the `env/` directory.
-- `.env.app`: FastAPI application settings.
-- `.env.postgres`: PostgreSQL credentials (user, password, db).
-- `.env.grafana`: Grafana settings (admin credentials).
-- `.env.postgres-exporter`: Exporter credentials (should match postgres).
+For local development, only the databases run in Docker:
 
-> [!WARNING]
-> **Configuration Discrepancy Note**: The `docker-compose.yml` refers to `./env/.env.postgres-exporter`, but the actual file in the directory might be named `2.postgres-exporter`. Please verify the filename matches the docker-compose reference.
+| Service | Port | Notes |
+|---------|------|-------|
+| **pgvector** | `5433` | PostgreSQL 17 + pgvector 0.8.0 |
+| **qdrant** | `6333` | Vector database |
+
+> Use `bash dev.sh` from the project root to start the dev stack automatically.
+
+---
+
+## 🚀 Quick Start
+
+### Production Deployment
+
+```bash
+cd Docker
+
+# 1. Configure environment files
+#    Edit files in Docker/env/ directory:
+#    - .env.app        → FastAPI settings (API keys, model config)
+#    - .env.postgres   → PostgreSQL credentials
+#    - .env.grafana    → Grafana admin credentials
+#    - .env.postgres-exporter → Exporter credentials (must match postgres)
+
+# 2. Start all services
+docker compose up -d --build
+
+# 3. Verify services are running
+docker compose ps
+```
+
+### Development (Databases Only)
+
+```bash
+docker compose -f docker-compose.dev.yml up -d
+```
+
+---
+
+## 🔧 Configuration
+
+### Environment Files (`env/` directory)
+
+| File | Purpose | Key Variables |
+|------|---------|---------------|
+| `.env.app` | FastAPI application | `GENRATION_BACKEND`, `EMBEDDING_BACKEND`, `OCR_BACKEND`, API keys |
+| `.env.postgres` | PostgreSQL | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` |
+| `.env.grafana` | Grafana | `GF_SECURITY_ADMIN_USER`, `GF_SECURITY_ADMIN_PASSWORD` |
+| `.env.postgres-exporter` | Exporter | Must match PostgreSQL credentials |
 
 ### Nginx Configuration (`Nginx/Default.conf`)
-Handles HTTP requests:
-- Proxies `/` to `http://fastapi:8000`.
-- Proxies `/kfgndfkk4464_fubfd555` to the FastAPI metrics endpoint.
 
-### Prometheus Configuration (`Prometheus/Prometheus.yml`)
-Defines scrape jobs:
-- `postgres`: Scrapes `postgres_exporter:9187`.
-- `prometheus`: Scrapes itself `localhost:9090`.
-- `node_exporter`: Scrapes `node_exporter:9100`.
-- `qdrant`: Scrapes `qdrant:6333/metrics`.
-- `fastapi`: Scrapes `fastapi:8000/kfgndfkk4464_fubfd555`.
+Routes incoming HTTP requests:
+- `/` → Frontend static files or FastAPI application
+- `/kfgndfkk4464_fubfd555` → FastAPI Prometheus metrics endpoint (obfuscated)
+
+### Prometheus Configuration (`Prometheus/prometheus.yml`)
+
+Scrape targets:
+| Job | Target | Metrics |
+|-----|--------|---------|
+| `fastapi` | `fastapi:8000/kfgndfkk4464_fubfd555` | Application metrics |
+| `postgres` | `postgres_exporter:9187` | Database metrics |
+| `node_exporter` | `node_exporter:9100` | System metrics |
+| `qdrant` | `qdrant:6333/metrics` | Vector DB metrics |
+| `prometheus` | `localhost:9090` | Self-monitoring |
 
 > [!IMPORTANT]
-> **File Naming Note**: The file is physically named `Prometheus.yml` (capital P) on disk, but `docker-compose.yml` references `prometheus.yml`. On case-sensitive filesystems (like Linux), this volume mount will fail. You must rename the file to lowercase `prometheus.yml` or update `docker-compose.yml`.
+> **Case Sensitivity**: The file is named `Prometheus.yml` but referenced as `prometheus.yml` in docker-compose. On Linux, rename to lowercase or update the volume mount path.
 
-## Usage
+---
 
-### Start Services
-Run the following command in this directory:
+## 🗃️ Data Persistence
+
+All data is stored in named Docker volumes:
+
+| Volume | Service | Contains |
+|--------|---------|----------|
+| `pgvector` | PostgreSQL | Database files, vector indexes |
+| `qdrant_data` | Qdrant | Vector collections |
+| `prometheus_data` | Prometheus | Time-series metrics |
+| `grafana_data` | Grafana | Dashboards, data sources |
+
+### Backup & Restore
+
 ```bash
-docker-compose up -d
+# Backup PostgreSQL volume
+docker run --rm \
+  -v docker_pgvector:/volume \
+  -v $(pwd):/backup \
+  alpine tar cvf /backup/pgvector_backup.tar /volume
+
+# Restore PostgreSQL volume (⚠️ overwrites existing data)
+docker run --rm \
+  -v docker_pgvector:/volume \
+  -v $(pwd):/backup \
+  alpine sh -c "cd /volume && tar xvf /backup/pgvector_backup.tar --strip 1"
+
+# List all volumes
+docker volume ls
+
+# Remove unused volumes (⚠️ data loss)
+docker volume prune
 ```
 
-### Stop Services
-```bash
-docker-compose down
-```
+> **Note:** Docker Compose prefixes volume names with the directory name (e.g., `docker_pgvector`). Run `docker volume ls` to confirm exact names.
 
-### View Logs
-```bash
-docker-compose logs -f [service_name]
-```
+---
 
-## Access Points
-- **App via Nginx**: http://localhost
-- **FastAPI Direct**: http://localhost:8000
-- **Grafana**: http://localhost:3000
-- **Prometheus**: http://localhost:9090
+## 🐳 Container Entrypoints
 
-## Bash Commands & Entrypoints
+### FastAPI (`minirag/entrypoint.sh`)
 
-### Container Entrypoints
-The system uses several bash commands within containers to initialize and run services:
-
-#### **FastAPI (`minirag/enterypoint.sh`)**
-The application container runs this script on startup:
 ```bash
 #!/bin/bash
 set -e
-echo "Runing database migrations..."
+echo "Running database migrations..."
 cd /app/Models/DB_Schemes/minirag
-alembic upgrade head
+alembic upgrade head       # Apply pending migrations
 cd /app
 echo "Starting uvicorn server..."
 exec uvicorn main:app --host 0.0.0.0 --port 8000
 ```
-- **`alembic upgrade head`**: Applies pending database migrations.
-- **`uvicorn main:app ...`**: Starts the ASGI application server.
 
-#### **Prometheus (`docker-compose.yml`)**
-Overrides default command to specify configuration paths and enable lifecycle API:
+### PostgreSQL Healthcheck
+
 ```bash
---config.file=/etc/prometheus/prometheus.yml
---storage.tsdb.path=/prometheus
---web.console.libraries=/etc/prometheus/console_libraries
---web.console.templates=/etc/prometheus/consoles
---web.enable-lifecycle
+pg_isready -U postgres     # Checks if database accepts connections
 ```
 
-#### **Node Exporter (`docker-compose.yml`)**
-Mounts host directories and runs:
+Configured with: interval=5s, timeout=5s, retries=10, start_period=30s
+
+---
+
+## 🛠️ Common Commands
+
+### Service Management
+
 ```bash
---path.procfs=/host/proc
---path.sysfs=/host/sys
---path.rootfs=/rootfs
---collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
-```
-
-#### **Healthchecks**
-- **PgVector**: `pg_isready -U postgres` (Checks if database is accepting connections).
-
-### Common System Management Commands
-Use these commands in your terminal to manage the system.
-
-**Start/Stop:**
-```bash
-# Start all services in detached mode
-docker-compose up -d
+# Start all services
+docker compose up -d
 
 # Stop all services
-docker-compose down
+docker compose down
 
-# Restart a specific service
-docker-compose restart fastapi
+# Restart specific service
+docker compose restart fastapi
+
+# Rebuild after code changes
+docker compose up -d --build fastapi
 ```
 
-**Logs & Debugging:**
+### Debugging
+
 ```bash
-# Follow logs for all services
-docker-compose logs -f
+# Follow all logs
+docker compose logs -f
 
-# Follow logs for a specific service
-docker-compose logs -f fastapi
+# Follow specific service logs
+docker compose logs -f fastapi
 
-# Open a bash shell inside a running container
+# Shell into application container
 docker exec -it fastapi /bin/bash
 
-# Open a shell in the database
+# Shell into PostgreSQL
 docker exec -it pgvector psql -U postgres
+
+# Run migrations manually
+docker exec -it fastapi bash -c "cd /app/Models/DB_Schemes/minirag && alembic upgrade head"
 ```
 
-**Database Migrations (Manual):**
-If you need to run migrations manually from within the `fastapi` container:
-```bash
-docker exec -it fastapi /bin/bash
-cd /app/Models/DB_Schemes/minirag
+---
 
-### Volume Maintenance & Backups
+## 🌐 Access Points
 
-This project uses named volumes (`pgvector`, `qdrant_data`, etc.) for persistence. Here are commands to manage them.
-
-**List Volumes:**
-```bash
-docker volume ls
-```
-
-**Inspect Volume Data:**
-Check where a volume is stored on the host:
-```bash
-docker volume inspect docker_pgvector
-```
-
-**Backup Volume (Example: `pgvector`):**
-Create a compressed backup of the `pgvector` volume to your current directory:
-```bash
-docker run --rm -v docker_pgvector:/volume -v $(pwd):/backup alpine tar cvf /backup/pgvector_backup.tar /volume
-```
-
-**Restore Volume:**
-Restore a backup to the `pgvector` volume (WARNING: Overwrites existing data):
-```bash
-docker run --rm -v docker_pgvector:/volume -v $(pwd):/backup alpine sh -c "cd /volume && tar xvf /backup/pgvector_backup.tar --strip 1"
-```
-
-**Remove Volumes:**
-Remove a specific volume (Data will be LOST):
-```bash
-docker volume rm docker_pgvector
-```
-
-**Cleanup Unused Volumes:**
-Remove all volumes not currently used by at least one container:
-```bash
-docker volume prune
-```
-
-**Note on Volume Names:**
-Docker Compose usually prefixes volumes with the directory name (e.g., if the method is `docker`, the volume might be `docker_pgvector`). Use `docker volume ls` to confirm the exact names.
-
-
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **Application** | http://localhost | — |
+| **FastAPI Docs** | http://localhost:8000/docs | — |
+| **Grafana** | http://localhost:3000 | Set in `.env.grafana` |
+| **Prometheus** | http://localhost:9090 | — |
+| **Qdrant Dashboard** | http://localhost:6333/dashboard | — |
+]]>
