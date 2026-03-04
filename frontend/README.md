@@ -1,6 +1,6 @@
-# Fehres Frontend
+# Tashfeer Frontend
 
-A modern, accessible React SPA for the Fehres RAG (Retrieval-Augmented Generation) system.
+A modern, accessible React SPA for the Tashfeer RAG (Retrieval-Augmented Generation) system.
 
 ## Features
 
@@ -25,7 +25,7 @@ A modern, accessible React SPA for the Fehres RAG (Retrieval-Augmented Generatio
 ### Prerequisites
 
 - Node.js 18+ or pnpm
-- Running Fehres API backend
+- Running Tashfeer API backend
 
 ### Installation
 
@@ -49,7 +49,7 @@ cp .env.example .env
 
 | Variable       | Description         | Default                        |
 | -------------- | ------------------- | ------------------------------ |
-| `VITE_API_URL` | Fehres API base URL | `http://localhost:8000/api/v1` |
+| `VITE_API_URL` | Tashfeer API base URL | `http://localhost:8000/api/v1` |
 
 ### Building for Production
 
@@ -64,8 +64,8 @@ The built files will be in the `dist/` directory.
 Build and run with Docker:
 
 ```bash
-docker build -t fehres-frontend .
-docker run -p 80:80 fehres-frontend
+docker build -t tashfeer-frontend .
+docker run -p 80:80 tashfeer-frontend
 ```
 
 ## Project Structure
@@ -87,7 +87,7 @@ frontend/
 
 ## API Integration
 
-The frontend communicates with the Fehres API at `http://localhost:8000/api/v1` by default. This can be changed in the Settings page.
+The frontend communicates with the Tashfeer API at `http://localhost:8000/api/v1` by default. This can be changed in the Settings page.
 
 Available endpoints:
 
@@ -101,4 +101,4 @@ Available endpoints:
 
 ## License
 
-Same as the main Fehres project.
+Same as the main Tashfeer project.

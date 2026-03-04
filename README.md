@@ -1,4 +1,4 @@
-# Fehres
+# Tashfeer
 
 A Retrieval-Augmented Generation (RAG) system for document-based question answering. Upload documents, process them into searchable chunks, and get AI-generated answers based on your content.
 
@@ -76,7 +76,7 @@ flowchart TB
 
 ```bash
 git clone <repository-url>
-cd fehres
+cd tashfeer
 ```
 
 #### 2. Set up Backend
@@ -164,7 +164,7 @@ For full API documentation, see [API.md](API.md).
 ## Project Structure
 
 ```
-fehres/
+tashfeer/
 ├── SRC/                    # Backend - FastAPI application
 │   ├── main.py             # Application entry point
 │   ├── Routes/             # API endpoint definitions
@@ -260,7 +260,7 @@ Apache License 2.0 - see [LICENCE](LICENCE) for details.
 
 ## Self-Hosting Guide
 
-Turn an old computer into a professional server for your "Fehres" project using **Self-Hosting**. This setup bypasses home network restrictions using Cloudflare Tunnel.
+Turn an old computer into a professional server for your "Tashfeer" project using **Self-Hosting**. This setup bypasses home network restrictions using Cloudflare Tunnel.
 
 ### Phase 1: The Hardware & OS
 
@@ -302,8 +302,8 @@ sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin 
 **2. Clone and Configure**
 
 ```bash
-git clone https://github.com/mohamedfathi540/fehres.git
-cd fehres/Docker
+git clone https://github.com/mohamedfathi540/tashfeer.git
+cd tashfeer/Docker
 
 # Create your .env files (ensure detailed configuration)
 # START THE APP
@@ -335,7 +335,7 @@ This will print a random public URL (e.g., `https://random-name.trycloudflare.co
 - Go to **Zero Trust Dashboard > Networks > Tunnels**.
 - Create a Tunnel and follow instructions to install the connector.
 - **Configure Public Hostname**:
-  - Public Hostname: `fehres.yourdomain.com`
+  - Public Hostname: `tashfeer.yourdomain.com`
   - Service: `HTTP -> localhost:80`
 
 ### Troubleshooting

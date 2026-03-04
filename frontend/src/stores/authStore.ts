@@ -26,7 +26,7 @@ export const useAuthStore = create<AuthState>()(
                 set({ token: null, userEmail: null, isAuthenticated: false }),
         }),
         {
-            name: 'fehres-auth',
+            name: 'tashfeer-auth',
         }
     )
 );

@@ -1,6 +1,6 @@
-# Fehres API Reference
+# Tashfeer API Reference
 
-This document describes the REST API endpoints available in Fehres.
+This document describes the REST API endpoints available in Tashfeer.
 
 Base URL: `http://localhost:8000/api/v1`
 
@@ -16,7 +16,7 @@ Check if the API is running.
 
 ```json
 {
-  "app_name": "Fehres",
+  "app_name": "Tashfeer",
   "app_version": "0.1"
 }
 ```
