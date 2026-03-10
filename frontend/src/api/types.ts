@@ -1,19 +1,48 @@
 // Request Types
 
 export interface ProcessRequest {
-    chunk_size: number;
-    overlap_size: number;
     Do_reset: number;
     file_id?: string;
 }
 
+export interface ScrapeRequest {
+    base_url: string;
+    library_name: string;
+    Do_reset: number;
+}
+
+export interface Library {
+    id: number;
+    name: string;
+}
+
+export interface LibrariesResponse {
+    signal: string;
+    libraries: Library[];
+}
+
+export interface ScrapeResponse {
+    signal: string;
+    Inserted_chunks: number;
+    processed_pages: number;
+    total_pages_scraped: number;
+}
+
 export interface PushRequest {
-    do_reset: boolean;
+    do_reset: number;
+    project_name?: string;
+}
+
+export interface ChatMessageForRequest {
+    role: "user" | "assistant";
+    content: string;
 }
 
 export interface SearchRequest {
     text: string;
     limit: number;
+    project_name?: string;
+    chat_history?: ChatMessageForRequest[];
 }
 
 // Response Types
@@ -43,6 +72,14 @@ export interface CollectionInfo {
     vectors_count?: number;
     points_count?: number;
     indexed_vectors_count?: number;
+    record_count?: number;
+    table_info?: {
+        schema_name?: string;
+        table_name?: string;
+        table_owner?: string;
+        table_space?: string | null;
+        has_indexes?: boolean;
+    };
 }
 
 export interface IndexInfoResponse {

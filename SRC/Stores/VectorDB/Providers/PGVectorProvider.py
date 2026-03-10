@@ -74,14 +74,13 @@ class PGVectorProvider(VectorDBInterface):
                 FROM pg_tables
                 WHERE tablename = :collection_name
                 ''')
-                 
-                count_sql    = sql_text(f'SELECT COUNT(*) FROM {collection_name}')
-                table_info   = await session.execute(table_inf_sql , {"collection_name": collection_name})
-                record_count = await session.execute(count_sql)
-
+                table_info = await session.execute(table_inf_sql , {"collection_name": collection_name})
                 table_data = table_info.fetchone()
                 if not table_data:
                     return None
+
+                count_sql = sql_text(f'SELECT COUNT(*) FROM {collection_name}')
+                record_count = await session.execute(count_sql)
 
                 return {
                     "table_info": {
@@ -142,11 +141,28 @@ class PGVectorProvider(VectorDBInterface):
                 record = bool(results.scalar_one_or_none())
                 return record
 
-    async def create_index_vector(self, collection_name: str, index_type: str = PgvectorIndexTypeEnums.HNSW.value):
+    async def create_index_vector(
+        self,
+        collection_name: str,
+        index_type: str = PgvectorIndexTypeEnums.HNSW.value,
+        vector_size: Optional[int] = None,
+    ):
         is_index_exsited = await self.is_index_exsited(collection_name=collection_name)
         if is_index_exsited:
             self.logger.debug(f"Index already exists for collection: {collection_name}")
             return True
+
+        if (
+            vector_size is not None
+            and index_type == PgvectorIndexTypeEnums.HNSW.value
+            and vector_size > 2000
+        ):
+            self.logger.warning(
+                "Skipping HNSW index for %s: vector_size=%s exceeds 2000",
+                collection_name,
+                vector_size,
+            )
+            return False
 
         async with self.db_client() as session:
             async with session.begin():
@@ -203,7 +219,7 @@ class PGVectorProvider(VectorDBInterface):
                     }
                 )
                 await session.commit()
-        await self.create_index_vector(collection_name=collection_name)
+        await self.create_index_vector(collection_name=collection_name, vector_size=len(vector))
         return True
 
     async def insert_many(self, collection_name: str, texts: list, vectors: list, metadata: list = None, record_ids: list = None, batch_size: int = 50):
@@ -252,7 +268,8 @@ class PGVectorProvider(VectorDBInterface):
                                                     )
                     await session.execute(batch_insert_sql, values)
                     await session.commit()
-        await self.create_index_vector(collection_name=collection_name)
+        vector_size = len(vectors[0]) if vectors else None
+        await self.create_index_vector(collection_name=collection_name, vector_size=vector_size)
         return True
 
     async def search_by_vector(self, collection_name: str, vector: list, limit: int = 5) -> List[RetrivedDocument]:

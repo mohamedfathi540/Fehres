@@ -1,8 +1,6 @@
 from .Base_DataModel import BaseDataModel
 from .DB_Schemes import dataChunk
 from .enums.DataBaseEnum import databaseEnum
-from bson.objectid import ObjectId
-from pymongo import InsertOne
 from sqlalchemy.future import select
 from sqlalchemy import func ,delete
 
@@ -47,8 +45,22 @@ class ChunkModel (BaseDataModel) :
                     session.add_all(batch)
             await session.commit()
         return len(chunks)
+
+    async def insert_many_chunks_returning_ids(self, chunks: list, batch_size: int = 10) -> list:
+        inserted_ids = []
+        if not chunks:
+            return inserted_ids
+        async with self.db_client() as session:
+            async with session.begin():
+                for i in range(0, len(chunks), batch_size):
+                    batch = chunks[i:i+batch_size]
+                    session.add_all(batch)
+                    await session.flush()
+                    inserted_ids.extend([c.chunk_id for c in batch])
+            await session.commit()
+        return inserted_ids
     
-    async def delete_chunk_by_project_id(self, project_id : ObjectId) :
+    async def delete_chunk_by_project_id(self, project_id : int) :
         
         async with self.db_client() as session :
             async with session.begin() :
@@ -58,7 +70,7 @@ class ChunkModel (BaseDataModel) :
         
         return result.rowcount
      
-    async def get_project_chunks (self, project_id : ObjectId , page_no : int = 1 , page_size : int = 50) :
+    async def get_project_chunks (self, project_id : int , page_no : int = 1 , page_size : int = 50) :
         
         async with self.db_client() as session :
             async with session.begin() :
@@ -67,9 +79,20 @@ class ChunkModel (BaseDataModel) :
                 result = await session.execute(stmt)
                 records = result.scalars().all()
             return records
+
+    async def get_chunks_by_ids(self, chunk_ids: list) -> list:
+        if not chunk_ids:
+            return []
+        async with self.db_client() as session:
+            async with session.begin():
+                stmt = select(dataChunk).where(dataChunk.chunk_id.in_(chunk_ids))
+                result = await session.execute(stmt)
+                records = result.scalars().all()
+        by_id = {c.chunk_id: c for c in records}
+        return [by_id[cid] for cid in chunk_ids if cid in by_id]
         
 
-    async def get_total_chunks_count (self, project_id : ObjectId) :
+    async def get_total_chunks_count (self, project_id : int) :
         total_count = 0
         async with self.db_client() as session :
             async with session.begin() :

@@ -2,12 +2,10 @@ import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   ChatBubbleLeftRightIcon,
-  ArrowUpTrayIcon,
-  MagnifyingGlassIcon,
   ChartBarIcon,
   Cog6ToothIcon,
-  AcademicCapIcon,
-  BookOpenIcon,
+  GlobeAltIcon,
+  MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { StatusBadge } from "../ui/StatusBadge";
@@ -16,16 +14,14 @@ import { checkHealth } from "../../api/base";
 
 const navigation = [
   { name: "Chat", href: "/", icon: ChatBubbleLeftRightIcon },
-  { name: "Learning Assistant", href: "/learning", icon: AcademicCapIcon },
-  { name: "Learning Books", href: "/learning-books", icon: BookOpenIcon },
-  { name: "Upload & Process", href: "/upload", icon: ArrowUpTrayIcon },
+  { name: "Library Docs", href: "/library-docs", icon: GlobeAltIcon },
   { name: "Search", href: "/search", icon: MagnifyingGlassIcon },
   { name: "Index Info", href: "/index", icon: ChartBarIcon },
   { name: "Settings", href: "/settings", icon: Cog6ToothIcon },
 ];
 
 export function Sidebar() {
-  const { projectId, setProjectId, apiUrl } = useSettingsStore();
+  const { apiUrl } = useSettingsStore();
   const [apiStatus, setApiStatus] = useState<"online" | "offline">("offline");
   const [isChecking, setIsChecking] = useState(false);
 
@@ -70,18 +66,6 @@ export function Sidebar() {
       </nav>
 
       <div className="p-3 border-t border-border space-y-3">
-        <div>
-          <label className="text-[11px] font-medium text-text-muted uppercase tracking-wider block mb-1">
-            Project ID
-          </label>
-          <input
-            type="number"
-            min={1}
-            value={projectId}
-            onChange={(e) => setProjectId(parseInt(e.target.value) || 1)}
-            className="w-full px-3 py-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-primary focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600/30 transition-all"
-          />
-        </div>
         <div className="flex items-center justify-between gap-2">
           <StatusBadge
             status={apiStatus}

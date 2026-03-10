@@ -24,6 +24,7 @@ uv.lock
 
 # Logs
 *.log
+logs/
 
 # IDE
 .vscode/

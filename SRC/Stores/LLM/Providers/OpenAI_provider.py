@@ -45,19 +45,22 @@ class OpenAIProvider(LLMInterface) :
         return text [:self.default_input_max_characters].strip()
 
 
-    def genrate_text(self ,prompt : str , max_output_tokens : int =None ,temperature : float =None , chat_history : list =[]) :
-        if not self.client :
+    def genrate_text(self, prompt: str, max_output_tokens: int = None, temperature: float = None,
+                     chat_history: list = [], max_prompt_characters: int = None):
+        if not self.client:
             self.logger.error("OpenAI client is not initialized")
             return None
 
-        if not self.genration_model_id :
+        if not self.genration_model_id:
             self.logger.error("OpenAI genration model is not initialized")
             return None
-        
+
         max_output_tokens = max_output_tokens if max_output_tokens else self.default_genrated_max_output_tokens
         temperature = temperature if temperature else self.default_genration_temperature
 
-        chat_history.append (self.construct_prompt(prompt = prompt,role = OpenAIEnum.USER.value))
+        final_prompt = (prompt[:max_prompt_characters].strip() if max_prompt_characters is not None
+                        else self.process_text(prompt))
+        chat_history.append(self.construct_prompt(prompt=final_prompt, role=OpenAIEnum.USER.value))
 
         response = self.client.chat.completions.create(
             model=self.genration_model_id,
